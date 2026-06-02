@@ -64,11 +64,11 @@ app.get('/stream/:videoId', async (req, res) => {
     '-f', 'bestaudio',
     '-g',
     '--no-playlist',
-    '--js-runtimes', 'node',
+    '--js-runtimes', `node:${process.execPath}`,
     `https://www.youtube.com/watch?v=${videoId}`
   ];
 
-  const ytDlp = spawn(ytDlpPath, ytDlpArgs);
+  const ytDlp = spawn(ytDlpPath, ytDlpArgs, { env: process.env });
 
   let cdnUrl = '';
   let errorOutput = '';
