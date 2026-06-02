@@ -1,0 +1,333 @@
+/* Core Design System & Tokens */
+:root {
+  --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  
+  /* Color Palette */
+  --bg-darker: #060813;
+  --bg-dark: #0b0f1d;
+  --bg-card: #12182b;
+  --bg-card-hover: #1e2642;
+  
+  --primary: #a855f7;       /* Violet */
+  --primary-glow: rgba(168, 85, 247, 0.4);
+  --secondary: #10b981;     /* Emerald */
+  --secondary-glow: rgba(16, 185, 129, 0.4);
+  
+  --text-primary: #ffffff;
+  --text-secondary: #94a3b8; /* Slate 400 */
+  --text-muted: #64748b;     /* Slate 500 */
+  
+  --border-glass: rgba(255, 255, 255, 0.05);
+  --bg-glass: rgba(13, 18, 38, 0.75);
+  --bg-glass-blur: blur(20px);
+  
+  --sidebar-width: 260px;
+  --player-height: 90px;
+  --mobile-nav-height: 64px;
+  
+  --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-fast: all 0.15s ease;
+}
+
+/* Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body, #root {
+  height: 100%;
+  font-family: var(--font-sans);
+  background-color: var(--bg-darker);
+  color: var(--text-primary);
+  overflow: hidden;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 99px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Typography Utility Classes */
+h1 {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  background: linear-gradient(135deg, #fff 0%, #cbd5e1 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--text-primary);
+}
+
+h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+p {
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* Layout Grid */
+.app-container {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  grid-template-rows: 1fr var(--player-height);
+  height: 100vh;
+  width: 100vw;
+  background-color: var(--bg-darker);
+  position: relative;
+}
+
+.main-content {
+  grid-column: 2 / 3;
+  grid-row: 1 / 2;
+  overflow-y: auto;
+  padding: 2rem;
+  padding-bottom: calc(var(--player-height) + 2rem);
+  background: radial-gradient(circle at top right, rgba(168, 85, 247, 0.08) 0%, transparent 60%),
+              radial-gradient(circle at bottom left, rgba(16, 185, 129, 0.05) 0%, transparent 50%);
+  scroll-behavior: smooth;
+}
+
+/* Responsive Layout */
+@media (max-width: 768px) {
+  .app-container {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+  }
+  
+  .main-content {
+    grid-column: 1 / 2;
+    padding: 1.25rem;
+    padding-bottom: calc(var(--player-height) + var(--mobile-nav-height) + 2rem);
+  }
+}
+
+/* Glassmorphism Panels */
+.glass-panel {
+  background: var(--bg-glass);
+  backdrop-filter: var(--bg-glass-blur);
+  -webkit-backdrop-filter: var(--bg-glass-blur);
+  border: 1px solid var(--border-glass);
+  border-radius: 16px;
+}
+
+/* Custom Interactive States */
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 99px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: var(--transition-smooth);
+  box-shadow: 0 4px 14px 0 rgba(168, 85, 247, 0.3);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px 0 rgba(168, 85, 247, 0.5);
+  filter: brightness(1.1);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.icon-button {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  padding: 0.5rem;
+  transition: var(--transition-fast);
+}
+
+.icon-button:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.icon-button.active {
+  color: var(--primary);
+}
+
+/* Grid System for Music Cards */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 1.5rem;
+}
+
+@media (max-width: 480px) {
+  .card-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 1rem;
+  }
+}
+
+/* Music Card Style */
+.music-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-glass);
+  border-radius: 12px;
+  padding: 1rem;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.music-card:hover {
+  background: var(--bg-card-hover);
+  transform: translateY(-4px);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+}
+
+.music-card-img-container {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 0.75rem;
+}
+
+.music-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: var(--transition-smooth);
+}
+
+.music-card:hover .music-card-img {
+  transform: scale(1.05);
+}
+
+.music-card-play-btn {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  width: 40px;
+  height: 40px;
+  background: var(--primary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: var(--transition-smooth);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.music-card:hover .music-card-play-btn {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.music-card-play-btn:hover {
+  transform: scale(1.1) !important;
+  background: var(--secondary);
+}
+
+.music-card-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 0.25rem;
+}
+
+.music-card-desc {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Animations */
+@keyframes pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.anim-spin-slow {
+  animation: spin-slow 20s linear infinite;
+}
+
+.anim-pulse {
+  animation: pulse 1.5s infinite ease-in-out;
+}
+
+.anim-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Custom visualizer animation helper */
+.visualizer-bar {
+  width: 3px;
+  background: linear-gradient(to top, var(--primary), var(--secondary));
+  border-radius: 3px 3px 0 0;
+  transition: height 0.1s ease;
+}
+
+/* Hidden YouTube Player Frame */
+.hidden-player-frame {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  left: -9999px;
+  opacity: 0.001;
+  pointer-events: none;
+}
+
