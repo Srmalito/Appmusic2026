@@ -8,7 +8,7 @@ import TrackList from '../components/TrackList';
 function Library({
   playTrack, favorites = [], recentlyPlayed = [], playlists = [],
   createPlaylist, deletePlaylist, navigateToPlaylist, removeTrackFromPlaylist,
-  genreFilter, playlistFilter, toggleFavorite, addTrackToPlaylist
+  genreFilter, playlistFilter, toggleFavorite, addTrackToPlaylist, addToQueue
 }) {
   const [activeSubTab, setActiveSubTab] = useState('playlists'); // 'playlists' | 'favorites' | 'history'
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -26,6 +26,7 @@ function Library({
           toggleFavorite={toggleFavorite}
           playlists={playlists}
           addTrackToPlaylist={addTrackToPlaylist}
+          addToQueue={addToQueue}
         />
       </div>
     );
@@ -49,6 +50,7 @@ function Library({
           addTrackToPlaylist={addTrackToPlaylist}
           removeTrackFromPlaylist={removeTrackFromPlaylist}
           playlistName={playlistFilter}
+          addToQueue={addToQueue}
         />
       </div>
     );
@@ -173,6 +175,7 @@ function Library({
                 toggleFavorite={toggleFavorite}
                 playlists={playlists}
                 addTrackToPlaylist={addTrackToPlaylist}
+                addToQueue={addToQueue}
               />
             ) : (
               <div className="library-empty-state glass-panel">
@@ -195,6 +198,7 @@ function Library({
                 toggleFavorite={toggleFavorite}
                 playlists={playlists}
                 addTrackToPlaylist={addTrackToPlaylist}
+                addToQueue={addToQueue}
               />
             ) : (
               <div className="library-empty-state glass-panel">

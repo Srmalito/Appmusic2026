@@ -1,158 +1,177 @@
 export const tracks = [
   {
     id: '1',
-    title: 'Lost in the City',
-    artist: 'Chillhop Beats',
-    album: 'Urban Dreamscapes',
-    duration: '03:07',
-    src: 'https://raw.githubusercontent.com/riccardobertolini/lofi-music/main/public/audio/relaxed-city.mp3',
-    cover: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=500&auto=format&fit=crop&q=60',
-    category: 'Chillhop'
+    title: 'Billie Jean',
+    artist: 'Michael Jackson',
+    album: 'Thriller',
+    duration: '04:54',
+    src: '',
+    cover: 'https://img.youtube.com/vi/Zi_XLOBDo_Y/hqdefault.jpg',
+    category: 'Pop',
+    isGlobal: true,
+    videoId: 'Zi_XLOBDo_Y'
   },
   {
     id: '2',
-    title: 'Empty Mind',
-    artist: 'Lofi Ambient',
-    album: 'Quiet Horizons',
-    duration: '03:54',
-    src: 'https://raw.githubusercontent.com/riccardobertolini/lofi-music/main/public/audio/empty-mind-118973.mp3',
-    cover: 'https://images.unsplash.com/photo-1518173946687-a4c8a383392e?w=500&auto=format&fit=crop&q=60',
-    category: 'Ambient'
+    title: 'Tití Me Preguntó',
+    artist: 'Bad Bunny',
+    album: 'Un Verano Sin Ti',
+    duration: '04:53',
+    src: '',
+    cover: 'https://img.youtube.com/vi/Cr8K88UcO0s/hqdefault.jpg',
+    category: 'Reggaeton',
+    isGlobal: true,
+    videoId: 'Cr8K88UcO0s'
   },
   {
     id: '3',
-    title: 'Midnight Piano',
-    artist: 'Nocturnal Echoes',
-    album: 'Keys in the Dark',
-    duration: '02:06',
-    src: 'https://raw.githubusercontent.com/riccardobertolini/lofi-music/main/public/audio/piano.mp3',
-    cover: 'https://images.unsplash.com/photo-1520523839897-bd0b52f945a0?w=500&auto=format&fit=crop&q=60',
-    category: 'Piano'
+    title: 'Sola (Remix)',
+    artist: 'Anuel AA',
+    album: 'Sola',
+    duration: '05:11',
+    src: '',
+    cover: 'https://img.youtube.com/vi/icuTFvt0vOY/hqdefault.jpg',
+    category: 'Reggaeton',
+    isGlobal: true,
+    videoId: 'icuTFvt0vOY'
   },
   {
     id: '4',
-    title: 'Forest Whispers',
-    artist: 'Nature Chillout',
-    album: 'Woodland Serenade',
-    duration: '02:05',
-    src: 'https://raw.githubusercontent.com/riccardobertolini/lofi-music/main/public/audio/forest_sounds.mp3',
-    cover: 'https://images.unsplash.com/photo-1448375240586-882707db888b?w=500&auto=format&fit=crop&q=60',
-    category: 'Nature'
+    title: 'Beat It',
+    artist: 'Michael Jackson',
+    album: 'Thriller',
+    duration: '04:58',
+    src: '',
+    cover: 'https://img.youtube.com/vi/oRdxUFDoQe0/hqdefault.jpg',
+    category: 'Pop',
+    isGlobal: true,
+    videoId: 'oRdxUFDoQe0'
   },
   {
     id: '5',
-    title: 'Sunset Harp',
-    artist: 'Acoustic Waves',
-    album: 'Golden Hour Sketches',
-    duration: '04:21',
-    src: 'https://raw.githubusercontent.com/riccardobertolini/lofi-music/main/public/audio/harp.mp3',
-    cover: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=500&auto=format&fit=crop&q=60',
-    category: 'Acoustic'
+    title: 'Ojitos Lindos',
+    artist: 'Bad Bunny ft. Bomba Estéreo',
+    album: 'Un Verano Sin Ti',
+    duration: '04:18',
+    src: '',
+    cover: 'https://img.youtube.com/vi/wAjHQXrIj9o/hqdefault.jpg',
+    category: 'Latino',
+    isGlobal: true,
+    videoId: 'wAjHQXrIj9o'
   },
   {
     id: '6',
-    title: 'Rainy Rooftops',
-    artist: 'Cozy Rain Beats',
-    album: 'Weathered Windows',
-    duration: '03:11',
-    src: 'https://raw.githubusercontent.com/riccardobertolini/lofi-music/main/public/audio/rain-on-roof.mp3',
-    cover: 'https://images.unsplash.com/photo-1534274988757-a28bf1a57c17?w=500&auto=format&fit=crop&q=60',
-    category: 'Nature'
+    title: 'Ella Quiere Beber',
+    artist: 'Anuel AA',
+    album: 'Real Hasta la Muerte',
+    duration: '03:39',
+    src: '',
+    cover: 'https://img.youtube.com/vi/0w3XwPVxcsw/hqdefault.jpg',
+    category: 'Reggaeton',
+    isGlobal: true,
+    videoId: '0w3XwPVxcsw'
   },
   {
     id: '7',
-    title: 'Zen Garden',
-    artist: 'Oriental Serenity',
-    album: 'Tea House Bells',
-    duration: '03:50',
-    src: 'https://raw.githubusercontent.com/riccardobertolini/lofi-music/main/public/audio/zen_bells.mp3',
-    cover: 'https://images.unsplash.com/photo-1514894780063-d403f779551e?w=500&auto=format&fit=crop&q=60',
-    category: 'Ambient'
+    title: 'LUNA',
+    artist: 'Feid',
+    album: 'FERXXOCALIPSIS',
+    duration: '03:16',
+    src: '',
+    cover: 'https://img.youtube.com/vi/ZA7ZKB8Mo9k/hqdefault.jpg',
+    category: 'Reggaeton',
+    isGlobal: true,
+    videoId: 'ZA7ZKB8Mo9k'
   },
   {
     id: '8',
-    title: 'Campfire Nights',
-    artist: 'Guitar & Embers',
-    album: 'Starry Canopy',
-    duration: '03:06',
-    src: 'https://raw.githubusercontent.com/riccardobertolini/lofi-music/main/public/audio/campfire-crackling.mp3',
-    cover: 'https://images.unsplash.com/photo-1526498460520-4c246339dccb?w=500&auto=format&fit=crop&q=60',
-    category: 'Acoustic'
+    title: 'Monaco',
+    artist: 'Bad Bunny',
+    album: 'Nadie Sabe Lo Que Va A Pasar Mañana',
+    duration: '04:27',
+    src: '',
+    cover: 'https://img.youtube.com/vi/_PJvpq8uOZM/hqdefault.jpg',
+    category: 'Trap',
+    isGlobal: true,
+    videoId: '_PJvpq8uOZM'
   },
   {
     id: '9',
-    title: 'Cozy Purr',
-    artist: 'Feline Sleep Beats',
-    album: 'Soft Pillows',
-    duration: '01:19',
-    src: 'https://raw.githubusercontent.com/riccardobertolini/lofi-music/main/public/audio/cat.mp3',
-    cover: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=500&auto=format&fit=crop&q=60',
-    category: 'Chillhop'
+    title: 'TQG',
+    artist: 'Karol G & Shakira',
+    album: 'Mañana Será Bonito',
+    duration: '03:37',
+    src: '',
+    cover: 'https://img.youtube.com/vi/GbTbHdPatkU/hqdefault.jpg',
+    category: 'Reggaeton',
+    isGlobal: true,
+    videoId: 'GbTbHdPatkU'
   },
   {
     id: '10',
-    title: 'Desert Wind',
-    artist: 'Deep Focus Ambient',
-    album: 'Dune Reveries',
-    duration: '04:43',
-    src: 'https://raw.githubusercontent.com/riccardobertolini/lofi-music/main/public/audio/desert.mp3',
-    cover: 'https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?w=500&auto=format&fit=crop&q=60',
-    category: 'Ambient'
+    title: 'Thriller',
+    artist: 'Michael Jackson',
+    album: 'Thriller',
+    duration: '05:57',
+    src: '',
+    cover: 'https://img.youtube.com/vi/sOnqjkJTMaA/hqdefault.jpg',
+    category: 'Pop',
+    isGlobal: true,
+    videoId: 'sOnqjkJTMaA'
   },
   {
     id: '11',
-    title: 'Wind & Leaves',
-    artist: 'Nature Whispers',
-    album: 'Breeze Flow',
-    duration: '03:40',
-    src: 'https://raw.githubusercontent.com/riccardobertolini/lofi-music/main/public/audio/wind-foliage.mp3',
-    cover: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=500&auto=format&fit=crop&q=60',
-    category: 'Nature'
+    title: 'China',
+    artist: 'Anuel AA ft. Daddy Yankee, Karol G, Ozuna, J Balvin',
+    album: 'Emmanuel',
+    duration: '05:01',
+    src: '',
+    cover: 'https://img.youtube.com/vi/0VR3dfZf9Yg/hqdefault.jpg',
+    category: 'Reggaeton',
+    isGlobal: true,
+    videoId: '0VR3dfZf9Yg'
   },
   {
     id: '12',
-    title: 'Deep Caves',
-    artist: 'Underground Meditation',
-    album: 'Subterranean Echo',
-    duration: '04:30',
-    src: 'https://raw.githubusercontent.com/riccardobertolini/lofi-music/main/public/audio/caves.mp3',
-    cover: 'https://images.unsplash.com/photo-1507163826306-03c0f5557df7?w=500&auto=format&fit=crop&q=60',
-    category: 'Ambient'
+    title: 'Shakira: Bzrp Music Sessions, Vol. 53',
+    artist: 'Bizarrap & Shakira',
+    album: 'Single',
+    duration: '03:37',
+    src: '',
+    cover: 'https://img.youtube.com/vi/CocEMWdc7Ck/hqdefault.jpg',
+    category: 'Latino',
+    isGlobal: true,
+    videoId: 'CocEMWdc7Ck'
   }
 ];
 
 export const genres = [
   {
     id: 'g1',
-    name: 'Chillhop',
+    name: 'Reggaeton',
     color: 'from-purple-600 to-indigo-600',
-    image: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=300&auto=format&fit=crop&q=60'
+    image: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300'
   },
   {
     id: 'g2',
-    name: 'Ambient',
+    name: 'Pop',
     color: 'from-blue-600 to-cyan-600',
-    image: 'https://images.unsplash.com/photo-1518173946687-a4c8a383392e?w=300&auto=format&fit=crop&q=60'
+    image: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300'
   },
   {
     id: 'g3',
-    name: 'Piano',
+    name: 'Trap',
     color: 'from-pink-600 to-rose-600',
-    image: 'https://images.unsplash.com/photo-1520523839897-bd0b52f945a0?w=300&auto=format&fit=crop&q=60'
+    image: 'https://images.unsplash.com/photo-1601042879364-f3947d3f9c16?w=300'
   },
   {
     id: 'g4',
-    name: 'Acoustic',
+    name: 'Latino',
     color: 'from-amber-600 to-orange-600',
-    image: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=300&auto=format&fit=crop&q=60'
-  },
-  {
-    id: 'g5',
-    name: 'Nature',
-    color: 'from-emerald-600 to-teal-600',
-    image: 'https://images.unsplash.com/photo-1448375240586-882707db888b?w=300&auto=format&fit=crop&q=60'
+    image: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=300'
   }
 ];
+
 
 export const PIPED_INSTANCES = [
   'https://pipedapi.kavin.rocks',

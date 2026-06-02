@@ -16,13 +16,13 @@ function Sidebar({ activeTab, setActiveTab }) {
           <svg viewBox="0 0 24 24" className="brand-logo" fill="none">
             <defs>
               <linearGradient id="brandGlow" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#a855f7" />
-                <stop offset="50%" stop-color="#3b82f6" />
-                <stop offset="100%" stop-color="#10b981" />
+                <stop offset="0%" stopColor="#a855f7" />
+                <stop offset="50%" stopColor="#3b82f6" />
+                <stop offset="100%" stopColor="#10b981" />
               </linearGradient>
             </defs>
-            <circle cx="12" cy="12" r="11" fill="#070a13" stroke="url(#brandGlow)" stroke-width="1.2"/>
-            <path d="M9 18V7l10-2v11" stroke="url(#brandGlow)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="12" cy="12" r="11" fill="#070a13" stroke="url(#brandGlow)" strokeWidth="1.2"/>
+            <path d="M9 18V7l10-2v11" stroke="url(#brandGlow)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
             <circle cx="6.5" cy="18" r="2.5" fill="url(#brandGlow)"/>
             <circle cx="16.5" cy="16" r="2.5" fill="url(#brandGlow)"/>
           </svg>

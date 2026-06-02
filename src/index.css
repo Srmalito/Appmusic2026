@@ -268,6 +268,77 @@ p {
   background: var(--secondary);
 }
 
+.music-card-like-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  background: rgba(8, 12, 28, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--border-glass);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: var(--transition-smooth);
+  cursor: pointer;
+}
+
+.music-card-like-btn:hover {
+  color: var(--primary);
+  transform: scale(1.1) translateY(0);
+  background: rgba(8, 12, 28, 0.9);
+}
+
+.music-card-like-btn.active {
+  opacity: 1 !important;
+  color: var(--primary);
+  transform: translateY(0);
+  background: rgba(8, 12, 28, 0.6);
+}
+
+.music-card:hover .music-card-like-btn {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.music-card-queue-btn {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  width: 40px;
+  height: 40px;
+  background: rgba(8, 12, 28, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--border-glass);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: var(--transition-smooth);
+  cursor: pointer;
+}
+
+.music-card-queue-btn:hover {
+  color: white;
+  background: var(--bg-card-hover);
+  transform: scale(1.1) translateY(0) !important;
+}
+
+.music-card:hover .music-card-queue-btn {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .music-card-title {
   font-size: 0.95rem;
   font-weight: 600;
@@ -329,5 +400,54 @@ p {
   left: -9999px;
   opacity: 0.001;
   pointer-events: none;
+}
+
+/* Toast Notification */
+.error-toast {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(168, 85, 247, 0.2);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  padding: 0.75rem 1.5rem;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  z-index: 9999;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(168, 85, 247, 0.2);
+  animation: slideDownFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  max-width: 90%;
+  text-align: center;
+}
+
+.error-toast.toast-error {
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(239, 68, 68, 0.2);
+}
+
+.error-toast-text {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: white;
+}
+
+.error-toast.toast-error .error-toast-text {
+  color: #fca5a5;
+}
+
+@keyframes slideDownFadeIn {
+  from {
+    transform: translate(-50%, -20px);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
 }
 

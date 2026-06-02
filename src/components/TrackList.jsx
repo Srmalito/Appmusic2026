@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { 
   Play, Pause, Heart, MoreVertical, Plus, Trash2, Music 
 } from 'lucide-react';
+import TrackCover from './TrackCover';
 
 function TrackList({
   tracks, playTrack, favorites = [], toggleFavorite, playlists = [], 
-  addTrackToPlaylist, removeTrackFromPlaylist, playlistName, currentTrack, isPlaying
+  addTrackToPlaylist, removeTrackFromPlaylist, playlistName, currentTrack, isPlaying, addToQueue
 }) {
   const [activeMenuId, setActiveMenuId] = useState(null);
 
@@ -69,7 +70,9 @@ function TrackList({
 
                   {/* Title & Cover & Artist */}
                   <span className="col-title">
-                    <img src={track.cover} alt={track.title} className="row-cover" />
+                    <div style={{ width: '40px', height: '40px', flexShrink: 0, borderRadius: '6px', overflow: 'hidden' }}>
+                      <TrackCover src={track.cover} alt={track.title} className="row-cover" iconSize={14} />
+                    </div>
                     <div className="row-metadata">
                       <div className="row-title-text">{track.title}</div>
                       <div className="row-artist-text">{track.artist}</div>
@@ -103,6 +106,20 @@ function TrackList({
                         <>
                           <div className="menu-backdrop" onClick={() => setActiveMenuId(null)} />
                           <div className="track-options-menu glass-panel">
+                            {/* Option 0: Add to queue */}
+                            {addToQueue && (
+                              <button 
+                                className="menu-item"
+                                onClick={() => {
+                                  addToQueue(track);
+                                  setActiveMenuId(null);
+                                }}
+                              >
+                                <Plus size={14} />
+                                Añadir a la cola
+                              </button>
+                            )}
+
                             {/* Option 1: Remove from current playlist */}
                             {playlistName && removeTrackFromPlaylist && (
                               <button 

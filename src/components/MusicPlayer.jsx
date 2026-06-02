@@ -1,16 +1,17 @@
 import { useState } from 'react';
 import { 
   Play, Pause, SkipForward, SkipBack, Shuffle, Repeat, 
-  Volume2, VolumeX, Heart, ChevronDown, ListPlus, Music, Loader2
+  Volume2, VolumeX, Heart, ChevronDown, ListPlus, Music, Loader2, Tv
 } from 'lucide-react';
 import Visualizer from './Visualizer';
+import TrackCover from './TrackCover';
 
 function MusicPlayer({
   currentTrack, isPlaying, togglePlay, playNext, playPrev,
   currentTime, duration, handleSeek, volume, handleVolumeChange,
   isMuted, toggleMute, isShuffle, toggleShuffle, isRepeat, toggleRepeat,
   favorites, toggleFavorite, playlists, addTrackToPlaylist,
-  isResolving
+  isResolving, showVideo, setShowVideo, hasVideo
 }) {
   const [isExpanded, setIsExpanded] = useState(false); // Mobile full screen player drawer
   const [showPlaylistMenu, setShowPlaylistMenu] = useState(false);
@@ -41,7 +42,7 @@ function MusicPlayer({
         {/* Track details (Left) */}
         <div className="player-track-info" onClick={() => window.innerWidth <= 768 && setIsExpanded(true)}>
           <div className="player-cover-container">
-            <img src={currentTrack.cover} alt={currentTrack.title} className={`player-cover ${isPlaying ? 'playing' : ''}`} />
+            <TrackCover src={currentTrack.cover} alt={currentTrack.title} className={`player-cover ${isPlaying ? 'playing' : ''}`} iconSize={18} />
           </div>
           <div className="player-metadata">
             <div className="player-title">{currentTrack.title}</div>
@@ -115,6 +116,17 @@ function MusicPlayer({
 
         {/* Volume & Extras (Right) */}
         <div className="player-extras-container">
+          {hasVideo && (
+            <button 
+              className={`icon-button ${showVideo ? 'active' : ''}`}
+              onClick={() => setShowVideo(!showVideo)}
+              title={showVideo ? "Ocultar Video" : "Mostrar Video"}
+              style={{ marginRight: '0.25rem' }}
+            >
+              <Tv size={18} />
+            </button>
+          )}
+
           <div className="playlist-adder-wrapper">
             <button className="icon-button" onClick={() => setShowPlaylistMenu(!showPlaylistMenu)} title="Agregar a lista">
               <ListPlus size={18} />
@@ -196,7 +208,7 @@ function MusicPlayer({
         <div className="expanded-body">
           <div className="vinyl-wrapper">
             <div className={`vinyl-record ${isPlaying ? 'spinning' : ''}`}>
-              <img src={currentTrack.cover} alt={currentTrack.title} className="vinyl-cover" />
+              <TrackCover src={currentTrack.cover} alt={currentTrack.title} className="vinyl-cover" iconSize={56} />
               <div className="vinyl-center-hole"></div>
             </div>
           </div>
@@ -497,11 +509,19 @@ function MusicPlayer({
           align-items: center;
           gap: 0.75rem;
           justify-self: end;
-          width: 180px;
+          justify-content: flex-end;
+          width: auto;
         }
 
         .volume-slider {
-          width: 100px;
+          width: 80px;
+          transition: var(--transition-smooth);
+        }
+
+        @media (min-width: 1024px) {
+          .volume-slider {
+            width: 110px;
+          }
         }
 
         .playlist-adder-wrapper {

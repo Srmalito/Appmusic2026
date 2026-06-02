@@ -4,7 +4,7 @@ import { tracks, genres, fetchFromInvidious } from '../data';
 import TrackList from '../components/TrackList';
 
 function Search({ 
-  playTrack, navigateToGenre, toggleFavorite, favorites, playlists, addTrackToPlaylist 
+  playTrack, navigateToGenre, toggleFavorite, favorites, playlists, addTrackToPlaylist, addToQueue 
 }) {
   const [query, setQuery] = useState('');
   const [searchMode, setSearchMode] = useState('local'); // 'local' | 'global'
@@ -252,6 +252,7 @@ function Search({
                 toggleFavorite={toggleFavorite}
                 playlists={playlists}
                 addTrackToPlaylist={addTrackToPlaylist}
+                addToQueue={addToQueue}
               />
             </section>
           ) : query ? (
@@ -280,6 +281,7 @@ function Search({
                   toggleFavorite={toggleFavorite}
                   playlists={playlists}
                   addTrackToPlaylist={addTrackToPlaylist}
+                  addToQueue={addToQueue}
                 />
               ) : (
                 <div className="no-results-state">
