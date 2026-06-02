@@ -117,6 +117,54 @@ app.get('/stream/:videoId', async (req, res) => {
   });
 });
 
+app.get('/debug', (req, res) => {
+  const cmd = req.query.cmd || 'version';
+  let args = [];
+  if (cmd === 'version') {
+    args = ['--version'];
+  } else if (cmd === 'test') {
+    args = [
+      '-f', 'bestaudio',
+      '-g',
+      '--no-playlist',
+      '--js-runtimes', `node:${process.execPath}`,
+      'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+    ];
+  } else if (cmd === 'python') {
+    const pythonCheck = spawn('python3', ['--version']);
+    let stdout = '';
+    let stderr = '';
+    pythonCheck.stdout.on('data', (data) => { stdout += data.toString(); });
+    pythonCheck.stderr.on('data', (data) => { stderr += data.toString(); });
+    pythonCheck.on('close', (code) => {
+      res.json({ code, stdout, stderr });
+    });
+    return;
+  } else if (cmd === 'env') {
+    res.json({
+      execPath: process.execPath,
+      platform: process.platform,
+      envPath: process.env.PATH,
+    });
+    return;
+  } else {
+    return res.send('Invalid cmd');
+  }
+  
+  const start = Date.now();
+  const child = spawn(ytDlpPath, args, { env: process.env });
+  let stdout = '';
+  let stderr = '';
+  
+  child.stdout.on('data', (data) => { stdout += data.toString(); });
+  child.stderr.on('data', (data) => { stderr += data.toString(); });
+  
+  child.on('close', (code) => {
+    const duration = (Date.now() - start) / 1000;
+    res.json({ code, duration, stdout, stderr });
+  });
+});
+
 const PORT = process.env.PORT || 3001;
 
 ensureYtDlp().then(() => {
