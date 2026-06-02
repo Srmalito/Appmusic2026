@@ -130,6 +130,24 @@ app.get('/debug', (req, res) => {
       '--js-runtimes', `node:${process.execPath}`,
       'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
     ];
+  } else if (cmd === 'test2') {
+    args = [
+      '-f', 'bestaudio',
+      '-g',
+      '--no-playlist',
+      '--extractor-args', 'youtube:player_client=android',
+      '--js-runtimes', `node:${process.execPath}`,
+      'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+    ];
+  } else if (cmd === 'test3') {
+    args = [
+      '-f', 'bestaudio',
+      '-g',
+      '--no-playlist',
+      '--extractor-args', 'youtube:player_client=tv',
+      '--js-runtimes', `node:${process.execPath}`,
+      'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+    ];
   } else if (cmd === 'verbose') {
     args = [
       '-f', 'bestaudio',
