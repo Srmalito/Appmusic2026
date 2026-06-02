@@ -59,16 +59,10 @@ app.get('/stream/:videoId', async (req, res) => {
 
   console.log(`[Stream Request] Video ID: ${videoId}`);
 
-  // 2. Set headers for audio streaming
-  // We send a generic audio content type and support range requests if needed,
-  // although simple piping works for live playback.
-  res.setHeader('Content-Type', 'audio/webm');
-  res.setHeader('Accept-Ranges', 'none'); // Stream pipe does not easily support byte ranges
-
-  // 3. Spawn yt-dlp to stream audio to stdout
+  // 2. Spawn yt-dlp to extract direct audio URL
   const ytDlpArgs = [
     '-f', 'bestaudio',
-    '-o', '-',
+    '-g',
     '--no-playlist',
     '--js-runtimes', 'node',
     `https://www.youtube.com/watch?v=${videoId}`
@@ -76,11 +70,13 @@ app.get('/stream/:videoId', async (req, res) => {
 
   const ytDlp = spawn(ytDlpPath, ytDlpArgs);
 
-  // Pipe stdout to client response
-  ytDlp.stdout.pipe(res);
-
-  // Capture errors from yt-dlp stderr for server logs
+  let cdnUrl = '';
   let errorOutput = '';
+
+  ytDlp.stdout.on('data', (data) => {
+    cdnUrl += data.toString();
+  });
+
   ytDlp.stderr.on('data', (data) => {
     errorOutput += data.toString();
   });
@@ -93,20 +89,31 @@ app.get('/stream/:videoId', async (req, res) => {
   });
 
   ytDlp.on('close', (code) => {
-    if (code !== 0 && code !== null) {
+    if (code !== 0) {
       console.error(`[yt-dlp Exited with code ${code}]: ${errorOutput}`);
       if (!res.headersSent) {
-        res.status(500).send('Failed to stream audio');
+        res.status(500).send('Failed to extract audio stream URL');
       }
     } else {
-      console.log(`[Stream Completed] Video ID: ${videoId}`);
+      const finalUrl = cdnUrl.trim();
+      if (finalUrl) {
+        console.log(`[Redirecting to YouTube CDN] Video ID: ${videoId}`);
+        res.redirect(302, finalUrl);
+      } else {
+        console.error(`[yt-dlp returned empty URL] Video ID: ${videoId}`);
+        if (!res.headersSent) {
+          res.status(500).send('Stream URL was empty');
+        }
+      }
     }
   });
 
-  // 4. Clean up process if the client aborts or disconnects
+  // 3. Clean up process if the client aborts or disconnects early
   req.on('close', () => {
-    console.log(`[Client Disconnected] Killing yt-dlp for video: ${videoId}`);
-    ytDlp.kill();
+    if (ytDlp.exitCode === null) {
+      console.log(`[Client Disconnected] Killing extraction process for video: ${videoId}`);
+      ytDlp.kill();
+    }
   });
 });
 
