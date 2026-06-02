@@ -49,6 +49,81 @@ async function ensureYtDlp() {
 // Security Regex for YouTube Video ID
 const VIDEO_ID_REGEX = /^[a-zA-Z0-9_-]{11}$/;
 
+// In-memory Cache to store extracted URLs
+const urlCache = new Map(); // videoId -> { cdnUrl, expiresAt }
+
+// 12 Default Homepage Video IDs to pre-warm on startup
+const DEFAULT_VIDEO_IDS = [
+  'Zi_XLOBDo_Y', // Billie Jean
+  'Cr8K88UcO0s', // Tití Me Preguntó
+  'icuTFvt0vOY', // Sola Remix
+  'oRdxUFDoQe0', // Beat It
+  'wAjHQXrIj9o', // Ojitos Lindos
+  '0w3XwPVxcsw', // Ella Quiere Beber
+  'ZA7ZKB8Mo9k', // LUNA
+  '_PJvpq8uOZM', // Monaco
+  'GbTbHdPatkU', // TQG
+  'sOnqjkJTMaA', // Thriller
+  '0VR3dfZf9Yg', // China
+  'CocEMWdc7Ck'  // Shakira Sessions 53
+];
+
+// Helper function to extract direct URL using yt-dlp
+function extractStreamUrl(videoId) {
+  return new Promise((resolve, reject) => {
+    const ytDlpArgs = [
+      '-f', 'bestaudio',
+      '-g',
+      '--no-playlist',
+      '--js-runtimes', `node:${process.execPath}`,
+      `https://www.youtube.com/watch?v=${videoId}`
+    ];
+    const ytDlp = spawn(ytDlpPath, ytDlpArgs, { env: process.env });
+    let stdout = '';
+    let stderr = '';
+    
+    ytDlp.stdout.on('data', (data) => { stdout += data.toString(); });
+    ytDlp.stderr.on('data', (data) => { stderr += data.toString(); });
+    
+    ytDlp.on('error', (err) => reject(err));
+    
+    ytDlp.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(stderr || `yt-dlp exited with code ${code}`));
+      } else {
+        const finalUrl = stdout.trim();
+        if (finalUrl) {
+          resolve(finalUrl);
+        } else {
+          reject(new Error('Stream URL was empty'));
+        }
+      }
+    });
+  });
+}
+
+// Background pre-warming function
+async function preWarmCache() {
+  console.log('[Pre-Warm] Starting cache pre-warming for default tracks...');
+  for (const videoId of DEFAULT_VIDEO_IDS) {
+    try {
+      const cdnUrl = await extractStreamUrl(videoId);
+      let expiresAt = Date.now() + 5 * 60 * 60 * 1000; // default 5 hours
+      const expireMatch = cdnUrl.match(/[?&]expire=(\d+)/);
+      if (expireMatch) {
+        expiresAt = parseInt(expireMatch[1], 10) * 1000 - 5 * 60 * 1000;
+      }
+      urlCache.set(videoId, { cdnUrl, expiresAt });
+      console.log(`[Pre-Warm Cached] Video ID: ${videoId}`);
+    } catch (err) {
+      console.warn(`[Pre-Warm Failed] Video ID: ${videoId}:`, err.message);
+    }
+    // Wait 2 seconds between extractions to prevent CPU spikes or rate limiting
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  console.log('[Pre-Warm] Pre-warming completed.');
+}
+
 app.get('/stream/:videoId', async (req, res) => {
   const { videoId } = req.params;
 
@@ -57,148 +132,34 @@ app.get('/stream/:videoId', async (req, res) => {
     return res.status(400).send('Invalid video ID format');
   }
 
-  console.log(`[Stream Request] Video ID: ${videoId}`);
-
-  // 2. Spawn yt-dlp to extract direct audio URL
-  const ytDlpArgs = [
-    '-f', 'bestaudio',
-    '-g',
-    '--no-playlist',
-    '--js-runtimes', `node:${process.execPath}`,
-    `https://www.youtube.com/watch?v=${videoId}`
-  ];
-
-  const ytDlp = spawn(ytDlpPath, ytDlpArgs, { env: process.env });
-
-  let cdnUrl = '';
-  let errorOutput = '';
-
-  ytDlp.stdout.on('data', (data) => {
-    cdnUrl += data.toString();
-  });
-
-  ytDlp.stderr.on('data', (data) => {
-    errorOutput += data.toString();
-  });
-
-  ytDlp.on('error', (err) => {
-    console.error(`[Error spawning yt-dlp]:`, err);
-    if (!res.headersSent) {
-      res.status(500).send('Streaming process initialization failed');
-    }
-  });
-
-  ytDlp.on('close', (code) => {
-    if (code !== 0) {
-      console.error(`[yt-dlp Exited with code ${code}]: ${errorOutput}`);
-      if (!res.headersSent) {
-        res.status(500).send('Failed to extract audio stream URL');
-      }
-    } else {
-      const finalUrl = cdnUrl.trim();
-      if (finalUrl) {
-        console.log(`[Redirecting to YouTube CDN] Video ID: ${videoId}`);
-        res.redirect(302, finalUrl);
-      } else {
-        console.error(`[yt-dlp returned empty URL] Video ID: ${videoId}`);
-        if (!res.headersSent) {
-          res.status(500).send('Stream URL was empty');
-        }
-      }
-    }
-  });
-
-  // 3. Clean up process if the client aborts or disconnects early
-  req.on('close', () => {
-    if (ytDlp.exitCode === null) {
-      console.log(`[Client Disconnected] Killing extraction process for video: ${videoId}`);
-      ytDlp.kill();
-    }
-  });
-});
-
-app.get('/debug', (req, res) => {
-  const cmd = req.query.cmd || 'version';
-  let args = [];
-  if (cmd === 'version') {
-    args = ['--version'];
-  } else if (cmd === 'test') {
-    args = [
-      '-f', 'bestaudio',
-      '-g',
-      '--no-playlist',
-      '--js-runtimes', `node:${process.execPath}`,
-      'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
-    ];
-  } else if (cmd === 'test2') {
-    args = [
-      '-f', 'bestaudio',
-      '-g',
-      '--no-playlist',
-      '--extractor-args', 'youtube:player_client=android',
-      '--js-runtimes', `node:${process.execPath}`,
-      'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
-    ];
-  } else if (cmd === 'test3') {
-    args = [
-      '-f', 'bestaudio',
-      '-g',
-      '--no-playlist',
-      '--extractor-args', 'youtube:player_client=tv',
-      '--js-runtimes', `node:${process.execPath}`,
-      'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
-    ];
-  } else if (cmd === 'test4') {
-    args = [
-      '-f', 'bestaudio',
-      '-g',
-      '--no-playlist',
-      '--force-ipv4',
-      '--js-runtimes', `node:${process.execPath}`,
-      'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
-    ];
-  } else if (cmd === 'verbose') {
-    args = [
-      '-f', 'bestaudio',
-      '-g',
-      '--no-playlist',
-      '--verbose',
-      '--js-runtimes', `node:${process.execPath}`,
-      'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
-    ];
-  } else if (cmd === 'python') {
-    const pythonCheck = spawn('python3', ['--version']);
-    let stdout = '';
-    let stderr = '';
-    pythonCheck.stdout.on('data', (data) => { stdout += data.toString(); });
-    pythonCheck.stderr.on('data', (data) => { stderr += data.toString(); });
-    pythonCheck.on('close', (code) => {
-      res.json({ code, stdout, stderr });
-    });
-    return;
-  } else if (cmd === 'env') {
-    res.json({
-      execPath: process.execPath,
-      platform: process.platform,
-      envPath: process.env.PATH,
-    });
-    return;
-  } else {
-    return res.send('Invalid cmd');
+  // 2. Check Cache
+  const cached = urlCache.get(videoId);
+  if (cached && cached.expiresAt > Date.now()) {
+    console.log(`[Cache Hit] Redirecting Video ID: ${videoId}`);
+    return res.redirect(302, cached.cdnUrl);
   }
-  
-  const start = Date.now();
-  const child = spawn(ytDlpPath, args, { env: process.env });
-  let stdout = '';
-  let stderr = '';
-  
-  child.stdout.on('data', (data) => { stdout += data.toString(); });
-  child.stderr.on('data', (data) => { stderr += data.toString(); });
-  
-  child.on('close', (code) => {
-    const duration = (Date.now() - start) / 1000;
-    res.json({ code, duration, stdout, stderr });
-  });
+
+  console.log(`[Cache Miss] Extracting Video ID: ${videoId}`);
+
+  try {
+    const finalUrl = await extractStreamUrl(videoId);
+    
+    // Save to cache
+    let expiresAt = Date.now() + 5 * 60 * 60 * 1000; // default 5 hours
+    const expireMatch = finalUrl.match(/[?&]expire=(\d+)/);
+    if (expireMatch) {
+      expiresAt = parseInt(expireMatch[1], 10) * 1000 - 5 * 60 * 1000;
+    }
+    urlCache.set(videoId, { cdnUrl: finalUrl, expiresAt });
+
+    console.log(`[Redirecting to YouTube CDN] Video ID: ${videoId}`);
+    res.redirect(302, finalUrl);
+  } catch (err) {
+    console.error(`[Extraction Failed] Video ID: ${videoId}:`, err.message);
+    if (!res.headersSent) {
+      res.status(500).send('Failed to extract audio stream URL');
+    }
+  }
 });
 
 const PORT = process.env.PORT || 3001;
@@ -206,6 +167,9 @@ const PORT = process.env.PORT || 3001;
 ensureYtDlp().then(() => {
   app.listen(PORT, () => {
     console.log(`Backend audio streaming server running on port ${PORT}`);
+    
+    // Start background cache pre-warming after server starts
+    preWarmCache();
   });
 }).catch((err) => {
   console.error('Failed to initialize server dependencies:', err);
