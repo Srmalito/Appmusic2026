@@ -117,39 +117,6 @@ app.get('/stream/:videoId', async (req, res) => {
   });
 });
 
-app.get('/debug', (req, res) => {
-  const cmd = req.query.cmd || 'version';
-  let args = [];
-  if (cmd === 'version') {
-    args = ['--version'];
-  } else if (cmd === 'test') {
-    args = ['-f', 'bestaudio', '-g', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'];
-  } else if (cmd === 'python') {
-    const pythonCheck = spawn('python3', ['--version']);
-    let stdout = '';
-    let stderr = '';
-    pythonCheck.stdout.on('data', (data) => { stdout += data.toString(); });
-    pythonCheck.stderr.on('data', (data) => { stderr += data.toString(); });
-    pythonCheck.on('close', (code) => {
-      res.json({ code, stdout, stderr });
-    });
-    return;
-  } else {
-    return res.send('Invalid cmd');
-  }
-  
-  const child = spawn(ytDlpPath, args);
-  let stdout = '';
-  let stderr = '';
-  
-  child.stdout.on('data', (data) => { stdout += data.toString(); });
-  child.stderr.on('data', (data) => { stderr += data.toString(); });
-  
-  child.on('close', (code) => {
-    res.json({ code, stdout, stderr });
-  });
-});
-
 const PORT = process.env.PORT || 3001;
 
 ensureYtDlp().then(() => {
