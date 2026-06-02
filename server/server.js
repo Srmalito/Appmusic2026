@@ -9,7 +9,9 @@ import { fileURLToPath } from 'url';
 dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ytDlpPath = path.join(__dirname, 'bin', 'yt-dlp.exe');
+const isWindows = process.platform === 'win32';
+const ytDlpFilename = isWindows ? 'yt-dlp.exe' : 'yt-dlp';
+const ytDlpPath = path.join(__dirname, 'bin', ytDlpFilename);
 
 const app = express();
 app.use(cors());
@@ -21,19 +23,26 @@ async function ensureYtDlp() {
   if (!fs.existsSync(binDir)) {
     fs.mkdirSync(binDir);
   }
-  const exePath = path.join(binDir, 'yt-dlp.exe');
+  const exePath = path.join(binDir, ytDlpFilename);
   if (!fs.existsSync(exePath)) {
-    console.log('yt-dlp.exe not found! Downloading from GitHub...');
-    const url = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe';
+    console.log(`${ytDlpFilename} not found! Downloading from GitHub...`);
+    const url = isWindows
+      ? 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe'
+      : 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp';
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Failed to download yt-dlp: ${response.statusText}`);
     }
     const arrayBuffer = await response.arrayBuffer();
     fs.writeFileSync(exePath, Buffer.from(arrayBuffer));
-    console.log('yt-dlp.exe downloaded successfully.');
+    
+    // Set executable permission for Linux
+    if (!isWindows) {
+      fs.chmodSync(exePath, '755');
+    }
+    console.log(`${ytDlpFilename} downloaded successfully.`);
   } else {
-    console.log('yt-dlp.exe verified.');
+    console.log(`${ytDlpFilename} verified.`);
   }
 }
 
