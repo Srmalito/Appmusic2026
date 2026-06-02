@@ -162,30 +162,15 @@ function App() {
     setIsResolving(true);
     setResolvedSrc(null); // Clear old stream URL so we don't play the previous track
 
-    try {
-      const data = await fetchFromInvidious('/api/v1/videos/' + track.videoId + '?local=true');
-      if (data && data.adaptiveFormats) {
-        const audioFormats = data.adaptiveFormats.filter(
-          (f) => (f.type && f.type.startsWith('audio/')) || (f.mimeType && f.mimeType.startsWith('audio/'))
-        );
-        audioFormats.sort((a, b) => (parseInt(b.bitrate) || 0) - (parseInt(a.bitrate) || 0));
-        const bestFormat = audioFormats[0];
-        if (bestFormat && bestFormat.url) {
-          let streamUrl = bestFormat.url;
-          if (streamUrl.startsWith('http://')) {
-            streamUrl = streamUrl.replace('http://', 'https://');
-          }
-          setResolvedSrc(streamUrl);
-          setIsResolving(false);
-          return streamUrl;
-        }
-      }
-      throw new Error('No audio format found');
-    } catch (err) {
-      console.warn('Error resolving track stream:', err);
-      setIsResolving(false);
-      return null;
-    }
+    const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? 'http://localhost:3001'
+        : window.location.origin);
+
+    const streamUrl = `${BACKEND_URL}/stream/${track.videoId}`;
+    setResolvedSrc(streamUrl);
+    setIsResolving(false);
+    return streamUrl;
   };
 
   const onEndedRef = useRef(null);
