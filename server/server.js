@@ -130,6 +130,15 @@ app.get('/debug', (req, res) => {
       '--js-runtimes', `node:${process.execPath}`,
       'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
     ];
+  } else if (cmd === 'verbose') {
+    args = [
+      '-f', 'bestaudio',
+      '-g',
+      '--no-playlist',
+      '--verbose',
+      '--js-runtimes', `node:${process.execPath}`,
+      'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+    ];
   } else if (cmd === 'python') {
     const pythonCheck = spawn('python3', ['--version']);
     let stdout = '';
