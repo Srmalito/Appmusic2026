@@ -167,10 +167,39 @@ function App() {
         ? 'http://localhost:3001'
         : window.location.origin);
 
-    const streamUrl = `${BACKEND_URL}/stream/${track.videoId}`;
-    setResolvedSrc(streamUrl);
-    setIsResolving(false);
-    return streamUrl;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      console.warn(`[Resolve Timeout] Video ID: ${track.videoId} took longer than 3.5s to resolve.`);
+      controller.abort();
+    }, 3500);
+
+    try {
+      const resolveUrl = `${BACKEND_URL}/resolve/${track.videoId}`;
+      console.log(`[Resolving] Fetching: ${resolveUrl}`);
+      
+      const response = await fetch(resolveUrl, {
+        signal: controller.signal,
+        headers: { 'Accept': 'application/json' }
+      });
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data && data.url) {
+          console.log(`[Resolving Success] Video ID: ${track.videoId}`);
+          setResolvedSrc(data.url);
+          setIsResolving(false);
+          return data.url;
+        }
+      }
+      throw new Error(`Server returned status: ${response.status}`);
+    } catch (err) {
+      clearTimeout(timeoutId);
+      console.warn(`Error resolving track stream (falling back to YouTube player):`, err.message);
+      setResolvedSrc(null);
+      setIsResolving(false);
+      return null;
+    }
   };
 
   const onEndedRef = useRef(null);

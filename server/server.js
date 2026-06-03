@@ -75,6 +75,9 @@ function extractStreamUrl(videoId) {
       '-f', 'bestaudio',
       '-g',
       '--no-playlist',
+      '--retries', '0',
+      '--extractor-retries', '0',
+      '--socket-timeout', '5',
       '--js-runtimes', `node:${process.execPath}`,
       `https://www.youtube.com/watch?v=${videoId}`
     ];
@@ -123,6 +126,44 @@ async function preWarmCache() {
   }
   console.log('[Pre-Warm] Pre-warming completed.');
 }
+
+app.get('/resolve/:videoId', async (req, res) => {
+  const { videoId } = req.params;
+
+  // 1. Validate Video ID for security (prevent injection)
+  if (!VIDEO_ID_REGEX.test(videoId)) {
+    return res.status(400).json({ error: 'Invalid video ID format' });
+  }
+
+  // 2. Check Cache
+  const cached = urlCache.get(videoId);
+  if (cached && cached.expiresAt > Date.now()) {
+    console.log(`[Resolve Cache Hit] Video ID: ${videoId}`);
+    return res.json({ url: cached.cdnUrl });
+  }
+
+  console.log(`[Resolve Cache Miss] Video ID: ${videoId}`);
+
+  try {
+    const finalUrl = await extractStreamUrl(videoId);
+    
+    // Save to cache
+    let expiresAt = Date.now() + 5 * 60 * 60 * 1000; // default 5 hours
+    const expireMatch = finalUrl.match(/[?&]expire=(\d+)/);
+    if (expireMatch) {
+      expiresAt = parseInt(expireMatch[1], 10) * 1000 - 5 * 60 * 1000;
+    }
+    urlCache.set(videoId, { cdnUrl: finalUrl, expiresAt });
+
+    console.log(`[Resolved YouTube CDN] Video ID: ${videoId}`);
+    res.json({ url: finalUrl });
+  } catch (err) {
+    console.error(`[Resolve Failed] Video ID: ${videoId}:`, err.message);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to extract audio stream URL' });
+    }
+  }
+});
 
 app.get('/stream/:videoId', async (req, res) => {
   const { videoId } = req.params;
