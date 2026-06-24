@@ -5,6 +5,7 @@ import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { Readable } from 'stream';
 
 dotenv.config();
 
@@ -139,7 +140,10 @@ app.get('/resolve/:videoId', async (req, res) => {
   const cached = urlCache.get(videoId);
   if (cached && cached.expiresAt > Date.now()) {
     console.log(`[Resolve Cache Hit] Video ID: ${videoId}`);
-    return res.json({ url: cached.cdnUrl });
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    const proxyUrl = `${protocol}://${host}/stream/${videoId}`;
+    return res.json({ url: proxyUrl });
   }
 
   console.log(`[Resolve Cache Miss] Video ID: ${videoId}`);
@@ -156,7 +160,12 @@ app.get('/resolve/:videoId', async (req, res) => {
     urlCache.set(videoId, { cdnUrl: finalUrl, expiresAt });
 
     console.log(`[Resolved YouTube CDN] Video ID: ${videoId}`);
-    res.json({ url: finalUrl });
+    
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    const proxyUrl = `${protocol}://${host}/stream/${videoId}`;
+    
+    res.json({ url: proxyUrl });
   } catch (err) {
     console.error(`[Resolve Failed] Video ID: ${videoId}:`, err.message);
     if (!res.headersSent) {
@@ -173,32 +182,70 @@ app.get('/stream/:videoId', async (req, res) => {
     return res.status(400).send('Invalid video ID format');
   }
 
-  // 2. Check Cache
-  const cached = urlCache.get(videoId);
-  if (cached && cached.expiresAt > Date.now()) {
-    console.log(`[Cache Hit] Redirecting Video ID: ${videoId}`);
-    return res.redirect(302, cached.cdnUrl);
-  }
-
-  console.log(`[Cache Miss] Extracting Video ID: ${videoId}`);
-
+  // 2. Check Cache / Extract URL
+  let finalUrl;
   try {
-    const finalUrl = await extractStreamUrl(videoId);
-    
-    // Save to cache
-    let expiresAt = Date.now() + 5 * 60 * 60 * 1000; // default 5 hours
-    const expireMatch = finalUrl.match(/[?&]expire=(\d+)/);
-    if (expireMatch) {
-      expiresAt = parseInt(expireMatch[1], 10) * 1000 - 5 * 60 * 1000;
+    const cached = urlCache.get(videoId);
+    if (cached && cached.expiresAt > Date.now()) {
+      console.log(`[Proxy Cache Hit] Stream Video ID: ${videoId}`);
+      finalUrl = cached.cdnUrl;
+    } else {
+      console.log(`[Proxy Cache Miss] Extracting Stream Video ID: ${videoId}`);
+      finalUrl = await extractStreamUrl(videoId);
+      
+      // Save to cache
+      let expiresAt = Date.now() + 5 * 60 * 60 * 1000; // default 5 hours
+      const expireMatch = finalUrl.match(/[?&]expire=(\d+)/);
+      if (expireMatch) {
+        expiresAt = parseInt(expireMatch[1], 10) * 1000 - 5 * 60 * 1000;
+      }
+      urlCache.set(videoId, { cdnUrl: finalUrl, expiresAt });
     }
-    urlCache.set(videoId, { cdnUrl: finalUrl, expiresAt });
-
-    console.log(`[Redirecting to YouTube CDN] Video ID: ${videoId}`);
-    res.redirect(302, finalUrl);
   } catch (err) {
     console.error(`[Extraction Failed] Video ID: ${videoId}:`, err.message);
+    return res.status(500).send('Failed to extract audio stream URL');
+  }
+
+  // 3. Proxy request with range headers
+  const headers = {};
+  if (req.headers.range) {
+    headers['Range'] = req.headers.range;
+    console.log(`[Proxy Stream] Forwarding range: ${req.headers.range} for Video ID: ${videoId}`);
+  }
+  headers['User-Agent'] = req.headers['user-agent'] || 'Mozilla/5.0';
+
+  try {
+    const response = await fetch(finalUrl, { headers });
+
+    // Set CORS headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Range');
+
+    // Forward status code
+    res.status(response.status);
+
+    // Copy relevant headers
+    const headersToForward = [
+      'content-type',
+      'content-length',
+      'content-range',
+      'accept-ranges',
+      'cache-control'
+    ];
+
+    headersToForward.forEach(header => {
+      const val = response.headers.get(header);
+      if (val) {
+        res.setHeader(header, val);
+      }
+    });
+
+    // Convert Web ReadableStream to Node.js Readable stream and pipe to Express response
+    Readable.fromWeb(response.body).pipe(res);
+  } catch (err) {
+    console.error(`[Proxy Stream Error] Video ID: ${videoId}:`, err.message);
     if (!res.headersSent) {
-      res.status(500).send('Failed to extract audio stream URL');
+      res.status(500).send('Internal stream proxy error');
     }
   }
 });

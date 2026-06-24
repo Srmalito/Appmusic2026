@@ -50,6 +50,7 @@ function App() {
   const ytPlayer = useRef(null);
   const [isYtReady, setIsYtReady] = useState(false);
   const ytPlayerLoadedVideoId = useRef(null);
+  const resolvedUrlsRef = useRef({});
 
   // Sync Library with LocalStorage
   useEffect(() => {
@@ -153,19 +154,72 @@ function App() {
     }
   }, []);
 
+  // Pre-resolve next track in the queue to enable seamless background playback
+  const preloadNextTrack = () => {
+    if (queue.length <= 1) return;
+
+    // Determine next track index based on shuffle/repeat settings
+    let nextIndex = (currentTrackIndex + 1) % queue.length;
+    if (isShuffle) {
+      // Pick a random index that is not the current one (if queue is large enough)
+      if (queue.length > 1) {
+        let randIndex = Math.floor(Math.random() * queue.length);
+        while (randIndex === currentTrackIndex) {
+          randIndex = Math.floor(Math.random() * queue.length);
+        }
+        nextIndex = randIndex;
+      }
+    }
+
+    const nextTrack = queue[nextIndex];
+    if (nextTrack && nextTrack.isGlobal && !resolvedUrlsRef.current[nextTrack.id]) {
+      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 
+        `${window.location.protocol}//${window.location.hostname}:3001`;
+      
+      const resolveUrl = `${BACKEND_URL}/resolve/${nextTrack.videoId}`;
+      console.log(`[Preload] Pre-resolving next track: "${nextTrack.title}" (${nextTrack.videoId})`);
+
+      fetch(resolveUrl)
+        .then(res => {
+          if (res.ok) return res.json();
+          throw new Error('Server resolution failed');
+        })
+        .then(data => {
+          if (data && data.url) {
+            resolvedUrlsRef.current[nextTrack.id] = data.url;
+            console.log(`[Preload Success] Cached URL for: "${nextTrack.title}"`);
+          }
+        })
+        .catch(err => {
+          console.warn(`[Preload Failed] Could not pre-resolve next track:`, err.message);
+        });
+    }
+  };
+
+  // Trigger preloading when track changes, queue changes, or shuffle changes
+  useEffect(() => {
+    preloadNextTrack();
+  }, [currentTrackIndex, queue, isShuffle]);
+
   const resolveTrackStream = async (track) => {
     if (!track || !track.isGlobal || !track.videoId) {
       setResolvedSrc(null);
       return null;
     }
 
+    // Check frontend cache first
+    if (resolvedUrlsRef.current[track.id]) {
+      const cachedUrl = resolvedUrlsRef.current[track.id];
+      setResolvedSrc(cachedUrl);
+      setIsResolving(false);
+      return cachedUrl;
+    }
+
     setIsResolving(true);
     setResolvedSrc(null); // Clear old stream URL so we don't play the previous track
 
     const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-        ? 'http://localhost:3001'
-        : window.location.origin);
+      `${window.location.protocol}//${window.location.hostname}:3001`;
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
@@ -187,6 +241,7 @@ function App() {
         const data = await response.json();
         if (data && data.url) {
           console.log(`[Resolving Success] Video ID: ${track.videoId}`);
+          resolvedUrlsRef.current[track.id] = data.url; // Cache it!
           setResolvedSrc(data.url);
           setIsResolving(false);
           return data.url;
@@ -217,9 +272,48 @@ function App() {
             audioRef.current.play().catch(err => console.log(err));
           }
         }
-      } else {
-        playNext();
+        return;
       }
+
+      // Continuous background playback logic
+      if (queue.length > 0) {
+        let nextIndex = currentTrackIndex;
+        if (isShuffle) {
+          nextIndex = Math.floor(Math.random() * queue.length);
+        } else {
+          nextIndex = (currentTrackIndex + 1) % queue.length;
+          if (nextIndex === 0 && isRepeat === 'off') {
+            setIsPlaying(false);
+            setCurrentTrackIndex(0);
+            return;
+          }
+        }
+
+        const nextTrack = queue[nextIndex];
+        if (nextTrack) {
+          const cachedUrl = nextTrack.isGlobal ? resolvedUrlsRef.current[nextTrack.id] : nextTrack.src;
+          
+          if (cachedUrl && audioRef.current) {
+            console.log(`[Background Continuity] Synchronously transition to cached next track: ${nextTrack.title}`);
+            
+            // Set source and play immediately in the same event tick!
+            audioRef.current.src = cachedUrl;
+            audioRef.current.play().catch(err => {
+              console.warn('[Background Continuity] Sync play failed:', err);
+            });
+            
+            // Update React state so visual player is in sync
+            setCurrentTrackIndex(nextIndex);
+            setResolvedSrc(cachedUrl);
+            setIsPlaying(true);
+            setCurrentTime(0);
+            return;
+          }
+        }
+      }
+
+      // Fallback: regular play next (which relies on async react cycle if not cached)
+      playNext();
     };
   });
 
@@ -228,6 +322,18 @@ function App() {
     if (queue.length > 0) {
       const track = queue[currentTrackIndex];
       if (!track) return;
+
+      // Guard: if we already modified the src in transitionToTrack or onEnded, we don't want to re-run resolve/play
+      const currentSrc = audioRef.current?.src || "";
+      const cachedUrl = track.isGlobal ? resolvedUrlsRef.current[track.id] : track.src;
+      
+      // If the audio element's src is already set to the target URL, we don't need to resolve or pause!
+      if (cachedUrl && currentSrc.includes(cachedUrl)) {
+        console.log(`[Index Sync] Audio element src already matches cached URL. Skipping resolve flow.`);
+        setCurrentTrack(track);
+        setCurrentTime(0);
+        return;
+      }
 
       setCurrentTrack(track);
       setCurrentTime(0);
@@ -468,6 +574,39 @@ function App() {
     setIsPlaying((prev) => !prev);
   };
 
+  const transitionToTrack = (nextIndex) => {
+    if (queue.length === 0) return;
+    const nextTrack = queue[nextIndex];
+    if (!nextTrack) return;
+
+    const cachedUrl = nextTrack.isGlobal ? resolvedUrlsRef.current[nextTrack.id] : nextTrack.src;
+
+    if (cachedUrl && audioRef.current) {
+      console.log(`[Sync Transition] Transitioning synchronously to track index ${nextIndex}: ${nextTrack.title}`);
+      
+      // Update audio source and play immediately
+      audioRef.current.src = cachedUrl;
+      audioRef.current.play().catch(err => {
+        console.warn('[Sync Transition] Synchronous play failed:', err);
+      });
+
+      // Update React state
+      setCurrentTrackIndex(nextIndex);
+      setResolvedSrc(cachedUrl);
+      setIsPlaying(true);
+      setCurrentTime(0);
+      
+      setRecentlyPlayed((prev) => {
+        const filtered = prev.filter((id) => id !== nextTrack.id);
+        return [nextTrack.id, ...filtered].slice(0, 20);
+      });
+    } else {
+      // Fallback: standard state updates that trigger the async resolve flow
+      setCurrentTrackIndex(nextIndex);
+      setIsPlaying(true);
+    }
+  };
+
   const playNext = () => {
     if (queue.length === 0) return;
     
@@ -484,8 +623,7 @@ function App() {
       }
     }
     
-    setCurrentTrackIndex(nextIndex);
-    setIsPlaying(true);
+    transitionToTrack(nextIndex);
   };
 
   const playPrev = () => {
@@ -507,8 +645,7 @@ function App() {
       }
     }
     
-    setCurrentTrackIndex(prevIndex);
-    setIsPlaying(true);
+    transitionToTrack(prevIndex);
   };
 
   const handleSeek = (time) => {
