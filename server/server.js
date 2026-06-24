@@ -73,7 +73,7 @@ const DEFAULT_VIDEO_IDS = [
 function extractStreamUrl(videoId) {
   return new Promise((resolve, reject) => {
     const ytDlpArgs = [
-      '-f', 'bestaudio',
+      '-f', 'ba[ext=m4a]/bestaudio',
       '-g',
       '--no-playlist',
       '--retries', '0',
