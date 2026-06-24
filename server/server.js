@@ -6,6 +6,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { Readable } from 'stream';
+import https from 'https';
 
 dotenv.config();
 
@@ -222,23 +223,24 @@ app.get('/stream/:videoId', async (req, res) => {
     return res.status(500).send('Failed to extract audio stream URL');
   }
 
-  // 3. Proxy request with range headers
-  const headers = {};
+  // 3. Proxy request with range headers using memory-efficient native https module
+  const options = {
+    headers: {
+      'User-Agent': req.headers['user-agent'] || 'Mozilla/5.0'
+    }
+  };
   if (req.headers.range) {
-    headers['Range'] = req.headers.range;
+    options.headers['Range'] = req.headers.range;
     console.log(`[Proxy Stream] Forwarding range: ${req.headers.range} for Video ID: ${videoId}`);
   }
-  headers['User-Agent'] = req.headers['user-agent'] || 'Mozilla/5.0';
 
-  try {
-    const response = await fetch(finalUrl, { headers });
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Range');
 
-    // Set CORS headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Headers', 'Range');
-
+  https.get(finalUrl, options, (proxyRes) => {
     // Forward status code
-    res.status(response.status);
+    res.status(proxyRes.statusCode);
 
     // Copy relevant headers
     const headersToForward = [
@@ -250,20 +252,20 @@ app.get('/stream/:videoId', async (req, res) => {
     ];
 
     headersToForward.forEach(header => {
-      const val = response.headers.get(header);
+      const val = proxyRes.headers[header];
       if (val) {
         res.setHeader(header, val);
       }
     });
 
-    // Convert Web ReadableStream to Node.js Readable stream and pipe to Express response
-    Readable.fromWeb(response.body).pipe(res);
-  } catch (err) {
+    // Pipe response stream directly with zero JS buffering
+    proxyRes.pipe(res);
+  }).on('error', (err) => {
     console.error(`[Proxy Stream Error] Video ID: ${videoId}:`, err.message);
     if (!res.headersSent) {
       res.status(500).send('Internal stream proxy error');
     }
-  }
+  });
 });
 
 const PORT = process.env.PORT || 3001;
@@ -272,8 +274,8 @@ ensureYtDlp().then(() => {
   app.listen(PORT, () => {
     console.log(`Backend audio streaming server running on port ${PORT}`);
     
-    // Start background cache pre-warming after server starts
-    preWarmCache();
+    // Disabled startup pre-warming to prevent 512MB memory spikes (crashes Render Free instances)
+    // preWarmCache();
   });
 }).catch((err) => {
   console.error('Failed to initialize server dependencies:', err);
