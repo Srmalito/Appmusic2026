@@ -86,7 +86,7 @@ function extractStreamUrl(videoId) {
       '--retries', '0',
       '--extractor-retries', '0',
       '--socket-timeout', '5',
-      '--js-for-yt-dlp', // Allow JS evaluation if needed
+      '--js-runtimes', `node:${process.execPath}`,
       '--extractor-args', 'youtube:player_client=ios,mweb',
     ];
 
