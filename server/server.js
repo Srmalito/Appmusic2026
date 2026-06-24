@@ -45,6 +45,13 @@ async function ensureYtDlp() {
   } else {
     console.log(`${ytDlpFilename} verified.`);
   }
+
+  // Create cookies.txt dynamically on startup if environment variable is provided
+  if (process.env.YOUTUBE_COOKIES) {
+    const cookiesPath = path.join(__dirname, 'cookies.txt');
+    fs.writeFileSync(cookiesPath, process.env.YOUTUBE_COOKIES, 'utf-8');
+    console.log('[Startup] cookies.txt created dynamically from YOUTUBE_COOKIES env var.');
+  }
 }
 
 // Security Regex for YouTube Video ID
