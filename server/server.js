@@ -80,6 +80,7 @@ function extractStreamUrl(videoId) {
       '--extractor-retries', '0',
       '--socket-timeout', '5',
       '--js-runtimes', `node:${process.execPath}`,
+      '--extractor-args', 'youtube:player_client=android_music,ios',
       `https://www.youtube.com/watch?v=${videoId}`
     ];
     const ytDlp = spawn(ytDlpPath, ytDlpArgs, { env: process.env });
