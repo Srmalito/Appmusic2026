@@ -79,10 +79,18 @@ function extractStreamUrl(videoId) {
       '--retries', '0',
       '--extractor-retries', '0',
       '--socket-timeout', '5',
-      '--js-runtimes', `node:${process.execPath}`,
+      '--js-for-yt-dlp', // Allow JS evaluation if needed
       '--extractor-args', 'youtube:player_client=ios,mweb',
-      `https://www.youtube.com/watch?v=${videoId}`
     ];
+
+    const cookiesPath = path.join(__dirname, 'cookies.txt');
+    if (fs.existsSync(cookiesPath)) {
+      ytDlpArgs.push('--cookies', cookiesPath);
+      console.log('[yt-dlp] Usando cookies.txt para evadir el bloqueo de bot.');
+    }
+
+    ytDlpArgs.push(`https://www.youtube.com/watch?v=${videoId}`);
+
     const ytDlp = spawn(ytDlpPath, ytDlpArgs, { env: process.env });
     let stdout = '';
     let stderr = '';
