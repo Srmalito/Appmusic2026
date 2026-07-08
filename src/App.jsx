@@ -1,22 +1,26 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
 import MusicPlayer from './components/MusicPlayer';
 import Home from './pages/Home';
 import Search from './pages/Search';
 import Library from './pages/Library';
-import { tracks, fetchFromInvidious } from './data';
+import { tracks, fetchFromInvidious, fetchFromPiped } from './data';
 import './App.css';
+
+// Module-level constant: computed once, avoids repeated string builds on every function call
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ||
+  `${window.location.protocol}//${window.location.hostname}:3001`;
 
 function App() {
   // Navigation & Page State
-  const [activeTab, setActiveTab] = useState('home');
+  const [activeTab, setActiveTab] = useState('search');
   const [selectedGenre, setSelectedGenre] = useState(null); // For viewing tracks of a genre
   const [selectedPlaylist, setSelectedPlaylist] = useState(null); // For viewing a playlist
 
   // Core Playback State
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const [queue, setQueue] = useState(tracks);
-  const [currentTrack, setCurrentTrack] = useState(tracks[0]);
+  const [currentTrack, setCurrentTrack] = useState(tracks[0] || null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -46,6 +50,38 @@ function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [localTracks, setLocalTracks] = useState([]);
+
+  useEffect(() => {
+    const fetchLocalTracks = () => {
+      fetch(`${BACKEND_URL}/api/tracks`)
+        .then((res) => res.json())
+        .then((data) => {
+          setLocalTracks(data);
+          // If queue is empty, initialize it with local tracks on load
+          setQueue((prevQueue) => {
+            if (prevQueue.length === 0 || prevQueue === tracks) {
+              return data;
+            }
+            return prevQueue;
+          });
+          setCurrentTrack((prevTrack) => {
+            if (!prevTrack && data.length > 0) {
+              return data[0];
+            }
+            return prevTrack;
+          });
+        })
+        .catch((err) => console.error('Failed to fetch local tracks:', err));
+    };
+
+    fetchLocalTracks();
+
+    // Poll backend every 10 seconds for new files
+    const interval = setInterval(fetchLocalTracks, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
   const audioRef = useRef(null);
   const ytPlayer = useRef(null);
   const [isYtReady, setIsYtReady] = useState(false);
@@ -71,8 +107,11 @@ function App() {
       }
     } else if (state === 1) {
       setIsPlaying(true);
+      setIsBuffering(false);
     } else if (state === 2) {
       setIsPlaying(false);
+    } else if (state === 3) {
+      setIsBuffering(true);
     }
   };
 
@@ -153,18 +192,24 @@ function App() {
     }
   }, []);
 
+  const resolvedUrls = useRef(new Map());
+
   const getTrackSrc = (track) => {
     if (!track) return '';
     if (track.isGlobal) {
-      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 
-        `${window.location.protocol}//${window.location.hostname}:3001`;
-      return `${BACKEND_URL}/stream/${track.videoId}`;
+      return resolvedUrls.current.get(track.videoId) || '';
     }
     return track.src;
   };
 
-  // Warm up the server-side cache for the next track in the background
-  const preloadNextTrackAfterIndex = (currentIndex) => {
+  // Pre-resolve global track URL through the local Node backend resolver
+  const warmTrackCache = useCallback(async (track) => {
+    // No-op: playing directly via YouTube iframe player, no cache warming needed.
+    return;
+  }, []);
+
+  // Warm up the cache for the next track in the background
+  const preloadNextTrackAfterIndex = useCallback((currentIndex) => {
     if (queue.length <= 1) return;
 
     let nextIndex = (currentIndex + 1) % queue.length;
@@ -179,22 +224,8 @@ function App() {
     }
 
     const nextTrack = queue[nextIndex];
-    if (nextTrack && nextTrack.isGlobal) {
-      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 
-        `${window.location.protocol}//${window.location.hostname}:3001`;
-      
-      const resolveUrl = `${BACKEND_URL}/resolve/${nextTrack.videoId}`;
-      console.log(`[Preload] Warming server cache for next track: "${nextTrack.title}" (${nextTrack.videoId})`);
-
-      fetch(resolveUrl)
-        .then(res => {
-          if (res.ok) console.log(`[Preload Success] Server cache warmed for: "${nextTrack.title}"`);
-        })
-        .catch(err => {
-          console.warn(`[Preload Failed] Could not warm server cache:`, err.message);
-        });
-    }
-  };
+    warmTrackCache(nextTrack);
+  }, [queue, isShuffle, warmTrackCache]);
 
   useEffect(() => {
     preloadNextTrackAfterIndex(currentTrackIndex);
@@ -236,31 +267,56 @@ function App() {
     };
   });
 
-  // Sync track index
+  // Sync track index and play status
   useEffect(() => {
     if (queue.length > 0) {
       const track = queue[currentTrackIndex];
       if (!track) return;
 
-      setUseYtFallback(false);
-      setCurrentTrack(track);
-      setCurrentTime(0);
+      if (track.isGlobal) {
+        setUseYtFallback(true);
+        setShowVideo(true); // Force show player container to allow unmuted autoplay
+        setCurrentTrack(track);
+        setCurrentTime(0);
 
-      const targetSrc = getTrackSrc(track);
-      if (audioRef.current) {
-        const currentSrc = audioRef.current.src || "";
-        if (!currentSrc.includes(targetSrc)) {
-          audioRef.current.src = targetSrc;
+        // Pause and cleanly unload HTML5 audio element to prevent error loops
+        if (audioRef.current) {
+          audioRef.current.removeAttribute('src');
+          audioRef.current.load();
         }
-        if (isPlaying) {
-          audioRef.current.play().catch((err) => {
-            console.log('Playback blocked by browser autoplay policy.', err);
-            setIsPlaying(false);
-          });
+
+        // Load into YouTube Player
+        if (ytPlayer.current && isYtReady) {
+          if (ytPlayerLoadedVideoId.current !== track.videoId) {
+            if (isPlaying) {
+              ytPlayer.current.loadVideoById(track.videoId);
+            } else {
+              ytPlayer.current.cueVideoById(track.videoId);
+            }
+            ytPlayerLoadedVideoId.current = track.videoId;
+          }
+        }
+      } else {
+        // Local track playback
+        setUseYtFallback(false);
+        setCurrentTrack(track);
+        setCurrentTime(0);
+
+        if (audioRef.current) {
+          const currentSrc = audioRef.current.src || "";
+          if (currentSrc !== track.src) {
+            audioRef.current.src = track.src;
+          }
+          if (isPlaying) {
+            audioRef.current.play().catch((err) => {
+              console.log('Playback blocked by browser autoplay policy.', err);
+              setIsPlaying(false);
+            });
+          }
         }
       }
     }
-  }, [currentTrackIndex, queue]);
+  }, [currentTrackIndex, queue, isYtReady, isPlaying]);
 
   // Handle Play/Pause side-effects
   useEffect(() => {
@@ -445,6 +501,11 @@ function App() {
   };
 
   const onAudioError = (e) => {
+    if (currentTrack?.isGlobal) {
+      // If the current track is global, we are playing it via YouTube iframe player,
+      // so ignore any errors from the local HTML5 audio element.
+      return;
+    }
     if (!audioRef.current || !audioRef.current.src) return;
     console.warn('Audio element error, falling back to YouTube iframe player:', e);
     
@@ -485,23 +546,65 @@ function App() {
     
     setRecentlyPlayed((prev) => {
       const filtered = prev.filter((id) => id !== track.id);
+      saveTrackDetails(track);
       return [track.id, ...filtered].slice(0, 20);
     });
-
-    setUseYtFallback(false);
-
-    if (audioRef.current) {
-      const targetSrc = getTrackSrc(track);
-      audioRef.current.src = targetSrc;
-      audioRef.current.play().catch(err => console.log('Sync play track failed:', err));
-    }
     
     setCurrentTrackIndex(index);
     setIsPlaying(true);
+
+    // SYNCHRONOUS PLAYER ACTION TO BYPASS MOBILE AUTOPLAY GESTURE RESTRICTIONS:
+    if (track.isGlobal) {
+      setUseYtFallback(true);
+      if (audioRef.current) {
+        audioRef.current.removeAttribute('src');
+        audioRef.current.load();
+      }
+      if (ytPlayer.current && isYtReady) {
+        ytPlayer.current.loadVideoById(track.videoId);
+        ytPlayerLoadedVideoId.current = track.videoId;
+      }
+    } else {
+      setUseYtFallback(false);
+      if (audioRef.current) {
+        const currentSrc = audioRef.current.src || "";
+        if (currentSrc !== track.src) {
+          audioRef.current.src = track.src;
+        }
+        audioRef.current.play().catch((err) => {
+          console.log('Mobile local play gesture block:', err);
+        });
+      }
+    }
   };
 
   const togglePlay = () => {
-    setIsPlaying((prev) => !prev);
+    setIsPlaying((prev) => {
+      const nextPlayState = !prev;
+      
+      // Synchronously execute playback action to satisfy mobile browser gesture checks
+      if (currentTrack?.isGlobal && useYtFallback) {
+        if (ytPlayer.current && isYtReady) {
+          if (nextPlayState) {
+            ytPlayer.current.playVideo();
+          } else {
+            ytPlayer.current.pauseVideo();
+          }
+        }
+      } else {
+        if (audioRef.current) {
+          if (nextPlayState) {
+            audioRef.current.play().catch((err) => {
+              console.log('Mobile toggle play gesture block:', err);
+            });
+          } else {
+            audioRef.current.pause();
+          }
+        }
+      }
+
+      return nextPlayState;
+    });
   };
 
   const transitionToTrack = (nextIndex) => {
@@ -509,28 +612,38 @@ function App() {
     const nextTrack = queue[nextIndex];
     if (!nextTrack) return;
 
-    setUseYtFallback(false);
+    setCurrentTrackIndex(nextIndex);
+    setIsPlaying(true);
+    setCurrentTime(0);
 
-    if (audioRef.current) {
-      const targetSrc = getTrackSrc(nextTrack);
-      console.log(`[Sync Transition] Transitioning synchronously to track index ${nextIndex}: ${nextTrack.title}`);
-      
-      // Update audio source and play immediately
-      audioRef.current.src = targetSrc;
-      audioRef.current.play().catch(err => {
-        console.warn('[Sync Transition] Synchronous play failed:', err);
-      });
+    setRecentlyPlayed((prev) => {
+      const filtered = prev.filter((id) => id !== nextTrack.id);
+      saveTrackDetails(nextTrack);
+      return [nextTrack.id, ...filtered].slice(0, 20);
+    });
 
-      setCurrentTrackIndex(nextIndex);
-      setIsPlaying(true);
-      setCurrentTime(0);
-
-      preloadNextTrackAfterIndex(nextIndex);
-      
-      setRecentlyPlayed((prev) => {
-        const filtered = prev.filter((id) => id !== nextTrack.id);
-        return [nextTrack.id, ...filtered].slice(0, 20);
-      });
+    // Synchronous execution for mobile autoplay chaining support
+    if (nextTrack.isGlobal) {
+      setUseYtFallback(true);
+      if (audioRef.current) {
+        audioRef.current.removeAttribute('src');
+        audioRef.current.load();
+      }
+      if (ytPlayer.current && isYtReady) {
+        ytPlayer.current.loadVideoById(nextTrack.videoId);
+        ytPlayerLoadedVideoId.current = nextTrack.videoId;
+      }
+    } else {
+      setUseYtFallback(false);
+      if (audioRef.current) {
+        const currentSrc = audioRef.current.src || "";
+        if (currentSrc !== nextTrack.src) {
+          audioRef.current.src = nextTrack.src;
+        }
+        audioRef.current.play().catch((err) => {
+          console.log('Mobile transition gesture block:', err);
+        });
+      }
     }
   };
 
@@ -624,10 +737,43 @@ function App() {
     });
   };
 
+  const saveTrackDetails = (track) => {
+    if (!track) return;
+    try {
+      const savedDetails = localStorage.getItem('vibeflow_track_details');
+      const detailsMap = savedDetails ? JSON.parse(savedDetails) : {};
+      detailsMap[track.id] = track;
+      localStorage.setItem('vibeflow_track_details', JSON.stringify(detailsMap));
+    } catch (err) {
+      console.warn('Failed to save track details to localStorage:', err);
+    }
+  };
+
+  const getTrackById = useCallback((id) => {
+    // 1. Check in localTracks
+    let track = localTracks.find(t => t.id === id);
+    if (track) return track;
+    
+    // 2. Check in queue
+    track = queue.find(t => t.id === id);
+    if (track) return track;
+
+    // 3. Check in localStorage
+    try {
+      const savedDetails = localStorage.getItem('vibeflow_track_details');
+      if (savedDetails) {
+        const detailsMap = JSON.parse(savedDetails);
+        if (detailsMap[id]) return detailsMap[id];
+      }
+    } catch (e) {}
+
+    return null;
+  }, [localTracks, queue]);
+
   // User Actions
   const toggleFavorite = (trackId) => {
     setFavorites((prev) => {
-      const track = queue.find(t => t.id === trackId) || tracks.find(t => t.id === trackId);
+      const track = queue.find(t => t.id === trackId) || localTracks.find(t => t.id === trackId) || getTrackById(trackId);
       const title = track ? track.title : 'Canción';
       if (prev.includes(trackId)) {
         setToastMessage(`Quitado de favoritos: ${title}`);
@@ -636,6 +782,9 @@ function App() {
       } else {
         setToastMessage(`Añadido a favoritos: ${title}`);
         setTimeout(() => setToastMessage(null), 3000);
+        if (track) {
+          saveTrackDetails(track);
+        }
         return [...prev, trackId];
       }
     });
@@ -726,6 +875,7 @@ function App() {
             favorites={favorites}
             toggleFavorite={toggleFavorite}
             addToQueue={addToQueue}
+            warmTrackCache={warmTrackCache}
           />
         );
       case 'search':
@@ -738,6 +888,8 @@ function App() {
             playlists={playlists}
             addTrackToPlaylist={addTrackToPlaylist}
             addToQueue={addToQueue}
+            warmTrackCache={warmTrackCache}
+            localTracks={localTracks}
           />
         );
       case 'library':
@@ -754,6 +906,8 @@ function App() {
             toggleFavorite={toggleFavorite}
             addTrackToPlaylist={addTrackToPlaylist}
             addToQueue={addToQueue}
+            getTrackById={getTrackById}
+            localTracks={localTracks}
           />
         );
       case 'genre':
@@ -778,6 +932,8 @@ function App() {
               playlists={playlists}
               addTrackToPlaylist={addTrackToPlaylist}
               addToQueue={addToQueue}
+              getTrackById={getTrackById}
+              localTracks={localTracks}
             />
           </div>
         );
@@ -815,6 +971,8 @@ function App() {
               addTrackToPlaylist={addTrackToPlaylist}
               removeTrackFromPlaylist={removeTrackFromPlaylist}
               addToQueue={addToQueue}
+              getTrackById={getTrackById}
+              localTracks={localTracks}
             />
           </div>
         );

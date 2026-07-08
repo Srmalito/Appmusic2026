@@ -8,7 +8,8 @@ import TrackList from '../components/TrackList';
 function Library({
   playTrack, favorites = [], recentlyPlayed = [], playlists = [],
   createPlaylist, deletePlaylist, navigateToPlaylist, removeTrackFromPlaylist,
-  genreFilter, playlistFilter, toggleFavorite, addTrackToPlaylist, addToQueue
+  genreFilter, playlistFilter, toggleFavorite, addTrackToPlaylist, addToQueue,
+  getTrackById, localTracks = []
 }) {
   const [activeSubTab, setActiveSubTab] = useState('playlists'); // 'playlists' | 'favorites' | 'history'
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -16,7 +17,7 @@ function Library({
 
   // 1. GENRE FILTER RENDER STATE
   if (genreFilter) {
-    const genreTracks = tracks.filter((t) => t.category.toLowerCase() === genreFilter.toLowerCase());
+    const genreTracks = [...tracks, ...localTracks].filter((t) => t.category && t.category.toLowerCase() === genreFilter.toLowerCase());
     return (
       <div className="library-filtered-view">
         <TrackList
@@ -36,7 +37,7 @@ function Library({
   if (playlistFilter) {
     const playlist = playlists.find((p) => p.name === playlistFilter);
     const playlistTracks = playlist
-      ? playlist.tracks.map((id) => tracks.find((t) => t.id === id)).filter(Boolean)
+      ? playlist.tracks.map((id) => getTrackById(id)).filter(Boolean)
       : [];
 
     return (
@@ -57,8 +58,8 @@ function Library({
   }
 
   // 3. LIBRARY TAB DASHBOARD
-  const favoriteTracks = favorites.map((id) => tracks.find((t) => t.id === id)).filter(Boolean);
-  const historyTracks = recentlyPlayed.map((id) => tracks.find((t) => t.id === id)).filter(Boolean);
+  const favoriteTracks = favorites.map((id) => getTrackById(id)).filter(Boolean);
+  const historyTracks = recentlyPlayed.map((id) => getTrackById(id)).filter(Boolean);
 
   const handleCreatePlaylistSubmit = (e) => {
     e.preventDefault();

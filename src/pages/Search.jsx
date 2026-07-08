@@ -1,13 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { Search as SearchIcon, X, Music, Loader2 } from 'lucide-react';
-import { tracks, genres, fetchFromInvidious } from '../data';
+import { fetchFromInvidious } from '../data';
 import TrackList from '../components/TrackList';
 
 function Search({ 
-  playTrack, navigateToGenre, toggleFavorite, favorites, playlists, addTrackToPlaylist, addToQueue 
+  playTrack, navigateToGenre, toggleFavorite, favorites, playlists, addTrackToPlaylist, addToQueue, warmTrackCache
 }) {
   const [query, setQuery] = useState('');
-  const [searchMode, setSearchMode] = useState('local'); // 'local' | 'global'
   const [globalResults, setGlobalResults] = useState([]);
   const [isLoadingGlobal, setIsLoadingGlobal] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
@@ -21,14 +20,6 @@ function Search({
     setSuggestions([]);
   };
 
-  const handleModeChange = (mode) => {
-    setSearchMode(mode);
-    setQuery('');
-    setGlobalResults([]);
-    setSuggestions([]);
-    setShowSuggestions(false);
-  };
-
   // Close suggestions when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -40,54 +31,34 @@ function Search({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Fetch search suggestions (local or global)
+  // Fetch search suggestions (global)
   useEffect(() => {
     if (!query.trim()) {
       setSuggestions([]);
       return;
     }
 
-    if (searchMode === 'local') {
-      const q = query.toLowerCase();
-      const localMatches = tracks
-        .filter(t => t.title.toLowerCase().includes(q) || t.artist.toLowerCase().includes(q))
-        .map(t => `${t.title} - ${t.artist}`)
-        .slice(0, 6);
-      setSuggestions(localMatches);
-    } else {
-      // Global suggestions using JSONP
-      const delayDebounceFn = setTimeout(() => {
-        const scriptId = 'yt-suggest-script';
-        const oldScript = document.getElementById(scriptId);
-        if (oldScript) oldScript.remove();
+    // Global suggestions using JSONP
+    const delayDebounceFn = setTimeout(() => {
+      const scriptId = 'yt-suggest-script';
+      const oldScript = document.getElementById(scriptId);
+      if (oldScript) oldScript.remove();
 
-        window.ytSuggestCallback = (data) => {
-          if (data && Array.isArray(data[1])) {
-            const formatted = data[1].map(item => item[0]);
-            setSuggestions(formatted.slice(0, 6));
-          }
-        };
+      window.ytSuggestCallback = (data) => {
+        if (data && Array.isArray(data[1])) {
+          const formatted = data[1].map(item => item[0]);
+          setSuggestions(formatted.slice(0, 6));
+        }
+      };
 
-        const script = document.createElement('script');
-        script.id = scriptId;
-        script.src = `https://suggestqueries.google.com/complete/search?client=youtube&ds=yt&q=${encodeURIComponent(query)}&jsonp=ytSuggestCallback`;
-        document.body.appendChild(script);
-      }, 250); // 250ms debounce for suggestions
+      const script = document.createElement('script');
+      script.id = scriptId;
+      script.src = `https://suggestqueries.google.com/complete/search?client=youtube&ds=yt&q=${encodeURIComponent(query)}&jsonp=ytSuggestCallback`;
+      document.body.appendChild(script);
+    }, 250); // 250ms debounce for suggestions
 
-      return () => clearTimeout(delayDebounceFn);
-    }
-  }, [query, searchMode]);
-
-  // Local filtering helper
-  const filteredTracks = tracks.filter((track) => {
-    const q = query.toLowerCase();
-    return (
-      track.title.toLowerCase().includes(q) ||
-      track.artist.toLowerCase().includes(q) ||
-      track.album.toLowerCase().includes(q) ||
-      track.category.toLowerCase().includes(q)
-    );
-  });
+    return () => clearTimeout(delayDebounceFn);
+  }, [query]);
 
   // Execute global search
   const executeGlobalSearch = async (searchQuery) => {
@@ -124,27 +95,17 @@ function Search({
     }
   };
 
-  // Global search submit handler
+  // Search submit handler
   const handleSearchSubmit = (e) => {
     if (e) e.preventDefault();
     setShowSuggestions(false);
-    if (searchMode === 'global') {
-      executeGlobalSearch(query);
-    }
+    executeGlobalSearch(query);
   };
 
   const handleSuggestionClick = (suggestion) => {
-    let cleanQuery = suggestion;
-    if (searchMode === 'local' && suggestion.includes(' - ')) {
-      // For local, search using only the song title part
-      cleanQuery = suggestion.split(' - ')[0];
-    }
-    
-    setQuery(cleanQuery);
+    setQuery(suggestion);
     setShowSuggestions(false);
-    if (searchMode === 'global') {
-      executeGlobalSearch(cleanQuery);
-    }
+    executeGlobalSearch(suggestion);
   };
 
   const formatDuration = (sec) => {
@@ -173,26 +134,10 @@ function Search({
   return (
     <div className="search-container">
       
-      {/* Toggle switch between local and global search */}
-      <div className="search-mode-toggle">
-        <button 
-          className={`mode-toggle-btn ${searchMode === 'local' ? 'active' : ''}`}
-          onClick={() => handleModeChange('local')}
-        >
-          Colección Local
-        </button>
-        <button 
-          className={`mode-toggle-btn ${searchMode === 'global' ? 'active' : ''}`}
-          onClick={() => handleModeChange('global')}
-        >
-          Buscador Global (Artistas Mundiales)
-        </button>
-      </div>
-
       {/* Top sticky search input header */}
       <header className="search-header-bar" ref={searchBarRef}>
         <form onSubmit={handleSearchSubmit} className="search-input-wrapper glass-panel">
-          <button type="submit" className="icon-button" style={{ padding: 0, color: 'inherit' }} disabled={searchMode === 'local'}>
+          <button type="submit" className="icon-button" style={{ padding: 0, color: 'inherit' }}>
             <SearchIcon size={20} className="search-icon-field" />
           </button>
           <input
@@ -203,11 +148,7 @@ function Search({
               setShowSuggestions(true);
             }}
             onFocus={() => setShowSuggestions(true)}
-            placeholder={
-              searchMode === 'local' 
-                ? "Buscar en colección local (Estudiar, Lofi...)" 
-                : "Busca cualquier artista, banda o canción del mundo..."
-            }
+            placeholder="Busca cualquier artista, banda o canción del mundo..."
             className="search-field-input"
             autoFocus
           />
@@ -240,8 +181,7 @@ function Search({
       <div className="search-body">
         {isLoadingGlobal ? (
           renderLoadingSkeleton()
-        ) : searchMode === 'global' ? (
-          // GLOBAL SEARCH MODE RESULTS
+        ) : (
           query && globalResults.length > 0 ? (
             <section className="search-results-section">
               <h2 className="search-results-title">Canciones del mundo para "{query}"</h2>
@@ -253,6 +193,7 @@ function Search({
                 playlists={playlists}
                 addTrackToPlaylist={addTrackToPlaylist}
                 addToQueue={addToQueue}
+                warmTrackCache={warmTrackCache}
               />
             </section>
           ) : query ? (
@@ -268,52 +209,6 @@ function Search({
               <p>Escribe el nombre de un artista o pista mundial y presiona enter para buscar.</p>
             </div>
           )
-        ) : (
-          // LOCAL SEARCH MODE RESULTS
-          query ? (
-            <section className="search-results-section">
-              <h2 className="search-results-title">Resultados de búsqueda locales</h2>
-              {filteredTracks.length > 0 ? (
-                <TrackList 
-                  tracks={filteredTracks} 
-                  playTrack={playTrack} 
-                  favorites={favorites}
-                  toggleFavorite={toggleFavorite}
-                  playlists={playlists}
-                  addTrackToPlaylist={addTrackToPlaylist}
-                  addToQueue={addToQueue}
-                />
-              ) : (
-                <div className="no-results-state">
-                  <Music size={48} className="text-muted bounce-slow" />
-                  <h3>No encontramos "{query}" localmente</h3>
-                  <p>¿Por qué no intentas buscar usando la pestaña de "Buscador Global"?</p>
-                </div>
-              )}
-            </section>
-          ) : (
-            <section className="explore-all-section">
-              <h2 className="explore-section-title">Explorar todo</h2>
-              <div className="explore-genres-grid">
-                {genres.map((genre) => (
-                  <div
-                    key={genre.id}
-                    className={`genre-explore-card bg-gradient-to-r ${genre.color}`}
-                    onClick={() => navigateToGenre(genre.name)}
-                  >
-                    <span className="genre-explore-title">{genre.name}</span>
-                    <div className="genre-explore-image-wrapper">
-                      <img 
-                        src={genre.image} 
-                        alt={genre.name} 
-                        className="genre-explore-thumbnail" 
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )
         )}
       </div>
 
@@ -322,36 +217,6 @@ function Search({
           display: flex;
           flex-direction: column;
           gap: 1.5rem;
-        }
-
-        .search-mode-toggle {
-          display: flex;
-          gap: 0.5rem;
-          padding: 0 0.25rem;
-        }
-
-        .mode-toggle-btn {
-          background: rgba(255, 255, 255, 0.02);
-          border: 1px solid var(--border-glass);
-          color: var(--text-secondary);
-          padding: 0.5rem 1.25rem;
-          border-radius: 99px;
-          font-size: 0.85rem;
-          font-weight: 700;
-          cursor: pointer;
-          transition: var(--transition-fast);
-        }
-
-        .mode-toggle-btn:hover {
-          color: white;
-          background: rgba(255, 255, 255, 0.05);
-        }
-
-        .mode-toggle-btn.active {
-          background: var(--primary);
-          color: white;
-          border-color: transparent;
-          box-shadow: 0 4px 12px var(--primary-glow);
         }
 
         .search-header-bar {
@@ -446,77 +311,6 @@ function Search({
           to { transform: translateY(-8px); }
         }
 
-        /* Explore Genres Grid Styles */
-        .explore-genres-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-          gap: 1.25rem;
-        }
-
-        .genre-explore-card {
-          height: 120px;
-          border-radius: 12px;
-          position: relative;
-          overflow: hidden;
-          cursor: pointer;
-          padding: 1rem;
-          display: flex;
-          flex-direction: column;
-          box-shadow: 0 4px 15px rgba(0,0,0,0.15);
-          transition: var(--transition-smooth);
-        }
-
-        .genre-explore-card:hover {
-          transform: translateY(-4px) scale(1.02);
-          box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
-        }
-
-        .genre-explore-title {
-          font-size: 1.2rem;
-          font-weight: 800;
-          color: white;
-          word-break: break-word;
-          line-height: 1.2;
-          z-index: 5;
-          text-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        }
-
-        .genre-explore-image-wrapper {
-          position: absolute;
-          bottom: -15px;
-          right: -15px;
-          width: 80px;
-          height: 80px;
-          transform: rotate(25deg);
-          border-radius: 8px;
-          overflow: hidden;
-          box-shadow: -2px 4px 10px rgba(0,0,0,0.3);
-          z-index: 2;
-        }
-
-        .genre-explore-thumbnail {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
-
-        /* Gradients mapping */
-        .bg-gradient-to-r.from-purple-600.to-indigo-600 {
-          background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
-        }
-        .bg-gradient-to-r.from-blue-600.to-cyan-600 {
-          background: linear-gradient(135deg, #2563eb 0%, #0891b2 100%);
-        }
-        .bg-gradient-to-r.from-pink-600.to-rose-600 {
-          background: linear-gradient(135deg, #db2777 0%, #e11d48 100%);
-        }
-        .bg-gradient-to-r.from-amber-600.to-orange-600 {
-          background: linear-gradient(135deg, #d97706 0%, #ea580c 100%);
-        }
-        .bg-gradient-to-r.from-emerald-600.to-teal-600 {
-          background: linear-gradient(135deg, #059669 0%, #0d9488 100%);
-        }
-
         /* Skeleton loading animation */
         .skeleton-row {
           display: flex;
@@ -565,34 +359,6 @@ function Search({
         @keyframes skeleton-glow {
           from { opacity: 0.4; }
           to { opacity: 0.8; }
-        }
-
-        @media (max-width: 480px) {
-          .explore-genres-grid {
-            grid-template-columns: repeat(2, 1fr);
-            gap: 0.8rem;
-          }
-          .genre-explore-card {
-            height: 100px;
-            padding: 0.75rem;
-          }
-          .genre-explore-title {
-            font-size: 1rem;
-          }
-          .genre-explore-image-wrapper {
-            width: 60px;
-            height: 60px;
-            bottom: -10px;
-            right: -10px;
-          }
-          .search-mode-toggle {
-            flex-direction: column;
-            gap: 0.35rem;
-          }
-          .mode-toggle-btn {
-            width: 100%;
-            text-align: center;
-          }
         }
 
         /* Suggestions dropdown styles */

@@ -28,3 +28,8 @@ dist-ssr
 # Cookies
 cookies.txt
 server/cookies.txt
+
+# Local music files
+music/
+server/music/
+music.db

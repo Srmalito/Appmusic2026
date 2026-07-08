@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { 
   Play, Pause, Heart, MoreVertical, Plus, Trash2, Music 
 } from 'lucide-react';
@@ -6,9 +6,12 @@ import TrackCover from './TrackCover';
 
 function TrackList({
   tracks, playTrack, favorites = [], toggleFavorite, playlists = [], 
-  addTrackToPlaylist, removeTrackFromPlaylist, playlistName, currentTrack, isPlaying, addToQueue
+  addTrackToPlaylist, removeTrackFromPlaylist, playlistName, currentTrack, isPlaying, addToQueue,
+  warmTrackCache
 }) {
   const [activeMenuId, setActiveMenuId] = useState(null);
+  // Timer ref for hover debounce - avoids triggering preload on fast mouse sweeps
+  const hoverTimerRef = useRef(null);
 
   const toggleMenu = (e, id) => {
     e.stopPropagation();
@@ -49,6 +52,16 @@ function TrackList({
                   key={track.id} 
                   className={`tracklist-row ${isCurrent ? 'current-playing' : ''}`}
                   onClick={() => handleRowClick(track)}
+                  onMouseEnter={() => {
+                    // Debounce: only preload if the user lingers 200ms on the row
+                    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                    hoverTimerRef.current = setTimeout(() => {
+                      if (warmTrackCache && !isCurrent) warmTrackCache(track);
+                    }, 200);
+                  }}
+                  onMouseLeave={() => {
+                    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                  }}
                 >
                   {/* Number / Play Indicator */}
                   <span className="col-index" onClick={(e) => e.stopPropagation()}>

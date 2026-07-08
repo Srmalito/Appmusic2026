@@ -1,283 +1,179 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { Readable } from 'stream';
-import https from 'https';
 
 dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const isWindows = process.platform === 'win32';
-const ytDlpFilename = isWindows ? 'yt-dlp.exe' : 'yt-dlp';
-const ytDlpPath = path.join(__dirname, 'bin', ytDlpFilename);
+const musicDir = path.join(__dirname, '..', 'music');
+
+// Ensure music directory exists
+if (!fs.existsSync(musicDir)) {
+  fs.mkdirSync(musicDir, { recursive: true });
+}
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Helper function to check/download yt-dlp on startup
-async function ensureYtDlp() {
-  const binDir = path.join(__dirname, 'bin');
-  if (!fs.existsSync(binDir)) {
-    fs.mkdirSync(binDir);
+// Serve local music files statically with CORS and Range requests support (handled natively by Express)
+app.use('/music', cors(), express.static(musicDir, {
+  fallthrough: false,
+  setHeaders: (res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Range');
   }
-  const exePath = path.join(binDir, ytDlpFilename);
-  if (!fs.existsSync(exePath)) {
-    console.log(`${ytDlpFilename} not found! Downloading from GitHub...`);
-    const url = isWindows
-      ? 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe'
-      : 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp';
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to download yt-dlp: ${response.statusText}`);
-    }
-    const arrayBuffer = await response.arrayBuffer();
-    fs.writeFileSync(exePath, Buffer.from(arrayBuffer));
-    
-    // Set executable permission for Linux
-    if (!isWindows) {
-      fs.chmodSync(exePath, '755');
-    }
-    console.log(`${ytDlpFilename} downloaded successfully.`);
-  } else {
-    console.log(`${ytDlpFilename} verified.`);
-  }
+}));
 
-  // Create cookies.txt dynamically on startup if environment variable is provided
-  if (process.env.YOUTUBE_COOKIES) {
-    const cookiesPath = path.join(__dirname, 'cookies.txt');
-    fs.writeFileSync(cookiesPath, process.env.YOUTUBE_COOKIES, 'utf-8');
-    console.log('[Startup] cookies.txt created dynamically from YOUTUBE_COOKIES env var.');
-  }
-}
+const AUDIO_EXTENSIONS = new Set(['.mp3', '.m4a', '.wav', '.ogg', '.flac', '.aac']);
 
-// Security Regex for YouTube Video ID
-const VIDEO_ID_REGEX = /^[a-zA-Z0-9_-]{11}$/;
-
-// In-memory Cache to store extracted URLs
-const urlCache = new Map(); // videoId -> { cdnUrl, expiresAt }
-
-// 12 Default Homepage Video IDs to pre-warm on startup
-const DEFAULT_VIDEO_IDS = [
-  'Zi_XLOBDo_Y', // Billie Jean
-  'Cr8K88UcO0s', // Tití Me Preguntó
-  'icuTFvt0vOY', // Sola Remix
-  'oRdxUFDoQe0', // Beat It
-  'wAjHQXrIj9o', // Ojitos Lindos
-  '0w3XwPVxcsw', // Ella Quiere Beber
-  'ZA7ZKB8Mo9k', // LUNA
-  '_PJvpq8uOZM', // Monaco
-  'GbTbHdPatkU', // TQG
-  'sOnqjkJTMaA', // Thriller
-  '0VR3dfZf9Yg', // China
-  'CocEMWdc7Ck'  // Shakira Sessions 53
-];
-
-// Helper function to extract direct URL using yt-dlp
-function extractStreamUrl(videoId) {
-  return new Promise((resolve, reject) => {
-    const ytDlpArgs = [
-      '-f', 'ba[ext=m4a]/bestaudio',
-      '-g',
-      '--no-playlist',
-      '--retries', '0',
-      '--extractor-retries', '0',
-      '--socket-timeout', '5',
-      '--js-runtimes', `node:${process.execPath}`,
-      '--extractor-args', 'youtube:player_client=ios,mweb',
-    ];
-
-    const cookiesPath = path.join(__dirname, 'cookies.txt');
-    if (fs.existsSync(cookiesPath)) {
-      ytDlpArgs.push('--cookies', cookiesPath);
-      console.log('[yt-dlp] Usando cookies.txt para evadir el bloqueo de bot.');
-    }
-
-    ytDlpArgs.push(`https://www.youtube.com/watch?v=${videoId}`);
-
-    const ytDlp = spawn(ytDlpPath, ytDlpArgs, { env: process.env });
-    let stdout = '';
-    let stderr = '';
-    
-    ytDlp.stdout.on('data', (data) => { stdout += data.toString(); });
-    ytDlp.stderr.on('data', (data) => { stderr += data.toString(); });
-    
-    ytDlp.on('error', (err) => reject(err));
-    
-    ytDlp.on('close', (code) => {
-      if (code !== 0) {
-        reject(new Error(stderr || `yt-dlp exited with code ${code}`));
-      } else {
-        const finalUrl = stdout.trim();
-        if (finalUrl) {
-          resolve(finalUrl);
-        } else {
-          reject(new Error('Stream URL was empty'));
-        }
-      }
-    });
-  });
-}
-
-// Background pre-warming function
-async function preWarmCache() {
-  console.log('[Pre-Warm] Starting cache pre-warming for default tracks...');
-  for (const videoId of DEFAULT_VIDEO_IDS) {
-    try {
-      const cdnUrl = await extractStreamUrl(videoId);
-      let expiresAt = Date.now() + 5 * 60 * 60 * 1000; // default 5 hours
-      const expireMatch = cdnUrl.match(/[?&]expire=(\d+)/);
-      if (expireMatch) {
-        expiresAt = parseInt(expireMatch[1], 10) * 1000 - 5 * 60 * 1000;
-      }
-      urlCache.set(videoId, { cdnUrl, expiresAt });
-      console.log(`[Pre-Warm Cached] Video ID: ${videoId}`);
-    } catch (err) {
-      console.warn(`[Pre-Warm Failed] Video ID: ${videoId}:`, err.message);
-    }
-    // Wait 2 seconds between extractions to prevent CPU spikes or rate limiting
-    await new Promise(r => setTimeout(r, 2000));
-  }
-  console.log('[Pre-Warm] Pre-warming completed.');
-}
-
-app.get('/resolve/:videoId', async (req, res) => {
-  const { videoId } = req.params;
-
-  // 1. Validate Video ID for security (prevent injection)
-  if (!VIDEO_ID_REGEX.test(videoId)) {
-    return res.status(400).json({ error: 'Invalid video ID format' });
-  }
-
-  // 2. Check Cache
-  const cached = urlCache.get(videoId);
-  if (cached && cached.expiresAt > Date.now()) {
-    console.log(`[Resolve Cache Hit] Video ID: ${videoId}`);
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-    const host = req.headers['x-forwarded-host'] || req.get('host');
-    const proxyUrl = `${protocol}://${host}/stream/${videoId}`;
-    return res.json({ url: proxyUrl });
-  }
-
-  console.log(`[Resolve Cache Miss] Video ID: ${videoId}`);
-
+// API to scan and list all local tracks in the music/ directory
+app.get('/api/tracks', (req, res) => {
   try {
-    const finalUrl = await extractStreamUrl(videoId);
-    
-    // Save to cache
-    let expiresAt = Date.now() + 5 * 60 * 60 * 1000; // default 5 hours
-    const expireMatch = finalUrl.match(/[?&]expire=(\d+)/);
-    if (expireMatch) {
-      expiresAt = parseInt(expireMatch[1], 10) * 1000 - 5 * 60 * 1000;
+    if (!fs.existsSync(musicDir)) {
+      return res.json([]);
     }
-    urlCache.set(videoId, { cdnUrl: finalUrl, expiresAt });
 
-    console.log(`[Resolved YouTube CDN] Video ID: ${videoId}`);
-    
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-    const host = req.headers['x-forwarded-host'] || req.get('host');
-    const proxyUrl = `${protocol}://${host}/stream/${videoId}`;
-    
-    res.json({ url: proxyUrl });
+    const files = fs.readdirSync(musicDir);
+    const tracks = files
+      .filter(file => {
+        const ext = path.extname(file).toLowerCase();
+        return AUDIO_EXTENSIONS.has(ext);
+      })
+      .map((file, index) => {
+        const ext = path.extname(file);
+        const filenameWithoutExt = file.slice(0, -ext.length);
+        
+        let artist = 'Artista Local';
+        let title = filenameWithoutExt;
+
+        // Try to parse "Artist - Title" format
+        if (filenameWithoutExt.includes(' - ')) {
+          const parts = filenameWithoutExt.split(' - ');
+          artist = parts[0].trim();
+          title = parts.slice(1).join(' - ').trim();
+        }
+
+        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+        const host = req.headers['x-forwarded-host'] || req.get('host');
+        const encodedFilename = encodeURIComponent(file);
+
+        return {
+          id: `local-${index}-${filenameWithoutExt}`,
+          title: title,
+          artist: artist,
+          album: 'Colección Local',
+          duration: '3:30', // Browser will fetch actual duration when metadata loads
+          src: `${protocol}://${host}/music/${encodedFilename}`,
+          cover: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300', // Premium default cover
+          isGlobal: false,
+          filename: file
+        };
+      });
+
+    console.log(`[API] Scanned local music folder. Found ${tracks.length} tracks.`);
+    res.json(tracks);
   } catch (err) {
-    console.error(`[Resolve Failed] Video ID: ${videoId}:`, err.message);
-    if (!res.headersSent) {
-      res.status(500).json({ error: 'Failed to extract audio stream URL' });
-    }
+    console.error('[API Error] Failed to scan local music directory:', err.message);
+    res.status(500).json({ error: 'Failed to scan local music folder' });
   }
 });
 
-app.get('/stream/:videoId', async (req, res) => {
+const PIPED_INSTANCES = [
+  'https://pipedapi.kavin.rocks',
+  'https://api.piped.yt',
+  'https://pipedapi.tokhmi.xyz',
+  'https://pipedapi.leptons.xyz',
+  'https://pipedapi.colt.top',
+  'https://piped-api.lunar.icu',
+  'https://pipedapi.r4fo.com',
+  'https://pipedapi.privacydev.net'
+];
+
+const INVIDIOUS_INSTANCES = [
+  'https://inv.nadeko.net',
+  'https://invidious.nerdvpn.de',
+  'https://invidious.f5.si',
+  'https://yt.chocolatemoo53.com',
+  'https://invidious.tiekoetter.com',
+  'https://inv.tux.im'
+];
+
+// Helper to query multiple public instances with fast failover (3s timeout per request)
+async function resolveAudioStreamUrl(videoId) {
+  // 1. Try Piped instances first
+  const shuffledPiped = [...PIPED_INSTANCES].sort(() => Math.random() - 0.5);
+  for (const instance of shuffledPiped) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch(`${instance}/streams/${videoId}`, {
+        signal: controller.signal,
+        headers: { 'Accept': 'application/json' }
+      });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.audioStreams && data.audioStreams.length > 0) {
+          const audio = data.audioStreams.find(s => s.mimeType.startsWith('audio/mp4')) || data.audioStreams[0];
+          if (audio && audio.url) {
+            console.log(`[Resolve ✓] Piped resolved stream URL via: ${instance}`);
+            return audio.url;
+          }
+        }
+      }
+    } catch (err) {
+      // Failover to next instance
+    }
+  }
+
+  // 2. Try Invidious instances if Piped fails
+  const shuffledInvidious = [...INVIDIOUS_INSTANCES].sort(() => Math.random() - 0.5);
+  for (const instance of shuffledInvidious) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch(`${instance}/api/v1/videos/${videoId}`, {
+        signal: controller.signal,
+        headers: { 'Accept': 'application/json' }
+      });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.adaptiveFormats && data.adaptiveFormats.length > 0) {
+          const audioFormats = data.adaptiveFormats.filter(f => f.type.startsWith('audio/'));
+          if (audioFormats.length > 0) {
+            console.log(`[Resolve ✓] Invidious resolved stream URL via: ${instance}`);
+            return audioFormats[0].url;
+          }
+        }
+      }
+    } catch (err) {
+      // Failover to next instance
+    }
+  }
+
+  throw new Error('All Piped and Invidious public instances failed to resolve stream URL');
+}
+
+// Endpoint to resolve YouTube stream URL through Node backend (CORS-free)
+app.get('/api/resolve/:videoId', async (req, res) => {
   const { videoId } = req.params;
-
-  // 1. Validate Video ID for security (prevent injection)
-  if (!VIDEO_ID_REGEX.test(videoId)) {
-    return res.status(400).send('Invalid video ID format');
-  }
-
-  // 2. Check Cache / Extract URL
-  let finalUrl;
   try {
-    const cached = urlCache.get(videoId);
-    if (cached && cached.expiresAt > Date.now()) {
-      console.log(`[Proxy Cache Hit] Stream Video ID: ${videoId}`);
-      finalUrl = cached.cdnUrl;
-    } else {
-      console.log(`[Proxy Cache Miss] Extracting Stream Video ID: ${videoId}`);
-      finalUrl = await extractStreamUrl(videoId);
-      
-      // Save to cache
-      let expiresAt = Date.now() + 5 * 60 * 60 * 1000; // default 5 hours
-      const expireMatch = finalUrl.match(/[?&]expire=(\d+)/);
-      if (expireMatch) {
-        expiresAt = parseInt(expireMatch[1], 10) * 1000 - 5 * 60 * 1000;
-      }
-      urlCache.set(videoId, { cdnUrl: finalUrl, expiresAt });
-    }
+    const audioUrl = await resolveAudioStreamUrl(videoId);
+    res.json({ url: audioUrl });
   } catch (err) {
-    console.error(`[Extraction Failed] Video ID: ${videoId}:`, err.message);
-    return res.status(500).send('Failed to extract audio stream URL');
+    console.error(`[Resolve Error] Failed to resolve videoId "${videoId}":`, err.message);
+    res.status(502).json({ error: 'No se pudo resolver el flujo de audio desde la red pública' });
   }
-
-  // 3. Proxy request with range headers using memory-efficient native https module
-  const options = {
-    headers: {
-      'User-Agent': req.headers['user-agent'] || 'Mozilla/5.0'
-    }
-  };
-  if (req.headers.range) {
-    options.headers['Range'] = req.headers.range;
-    console.log(`[Proxy Stream] Forwarding range: ${req.headers.range} for Video ID: ${videoId}`);
-  }
-
-  // Set CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Headers', 'Range');
-
-  https.get(finalUrl, options, (proxyRes) => {
-    // Forward status code
-    res.status(proxyRes.statusCode);
-
-    // Copy relevant headers
-    const headersToForward = [
-      'content-type',
-      'content-length',
-      'content-range',
-      'accept-ranges',
-      'cache-control'
-    ];
-
-    headersToForward.forEach(header => {
-      const val = proxyRes.headers[header];
-      if (val) {
-        res.setHeader(header, val);
-      }
-    });
-
-    // Pipe response stream directly with zero JS buffering
-    proxyRes.pipe(res);
-  }).on('error', (err) => {
-    console.error(`[Proxy Stream Error] Video ID: ${videoId}:`, err.message);
-    if (!res.headersSent) {
-      res.status(500).send('Internal stream proxy error');
-    }
-  });
 });
 
 const PORT = process.env.PORT || 3001;
 
-ensureYtDlp().then(() => {
-  app.listen(PORT, () => {
-    console.log(`Backend audio streaming server running on port ${PORT}`);
-    
-    // Disabled startup pre-warming to prevent 512MB memory spikes (crashes Render Free instances)
-    // preWarmCache();
-  });
-}).catch((err) => {
-  console.error('Failed to initialize server dependencies:', err);
-  process.exit(1);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`\n🎵 Local Music Server running on http://localhost:${PORT}`);
+  console.log(`📂 Scanning music from: ${musicDir}\n`);
 });

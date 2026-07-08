@@ -658,9 +658,10 @@ function MusicPlayer({
             z-index: 100;
             transform: translateY(100%);
             transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-            padding: 2rem 1.5rem;
+            padding: 1.5rem 1.5rem calc(1.5rem + env(safe-area-inset-bottom, 0px));
             border-radius: 0;
             border: none;
+            overflow-y: auto;
           }
 
           .expanded-mobile-player.active {
@@ -670,10 +671,10 @@ function MusicPlayer({
           .expanded-player-header {
             display: flex;
             align-items: center;
-            justify-content: justify;
+            justify-content: space-between;
             width: 100%;
             height: 40px;
-            margin-bottom: 2rem;
+            margin-bottom: 1rem;
           }
 
           .expanded-header-title {
@@ -698,8 +699,9 @@ function MusicPlayer({
             flex: 1;
             display: flex;
             flex-direction: column;
-            justify-content: space-around;
-            padding: 1rem 0;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 0.5rem 0;
           }
 
           .vinyl-wrapper {
@@ -708,12 +710,13 @@ function MusicPlayer({
             justify-content: center;
             width: 100%;
             aspect-ratio: 1;
-            max-height: 280px;
+            max-height: 220px;
+            margin: 0 auto;
           }
 
           .vinyl-record {
-            width: 250px;
-            height: 250px;
+            width: 200px;
+            height: 200px;
             border-radius: 50%;
             background: #111;
             position: relative;
@@ -724,19 +727,19 @@ function MusicPlayer({
           }
 
           .vinyl-cover {
-            width: 140px;
-            height: 140px;
+            width: 110px;
+            height: 110px;
             border-radius: 50%;
             object-fit: cover;
           }
 
           .vinyl-center-hole {
-            width: 20px;
-            height: 20px;
+            width: 16px;
+            height: 16px;
             background: var(--bg-darker);
             border-radius: 50%;
             position: absolute;
-            border: 4px solid #000;
+            border: 3px solid #000;
           }
 
           .spinning {
@@ -747,32 +750,42 @@ function MusicPlayer({
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin: 1.5rem 0;
+            margin: 0.5rem 0;
           }
 
           .expanded-track-title {
-            font-size: 1.4rem;
+            font-size: 1.25rem;
             font-weight: 800;
             letter-spacing: -0.02em;
+            display: -webkit-box;
+            -webkit-line-clamp: 1;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
           }
 
           .expanded-track-artist {
-            font-size: 0.95rem;
+            font-size: 0.85rem;
             color: var(--text-secondary);
-            margin-top: 0.25rem;
+            margin-top: 0.15rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 1;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
           }
 
           .expanded-visualizer-container {
-            height: 48px;
+            height: 32px;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-bottom: 1rem;
+            margin-bottom: 0.5rem;
           }
 
           .expanded-progress-container {
             width: 100%;
-            margin-bottom: 1.5rem;
+            margin-bottom: 0.5rem;
           }
 
           .expanded-controls {
@@ -781,12 +794,12 @@ function MusicPlayer({
             justify-content: space-between;
             width: 100%;
             max-width: 320px;
-            margin: 0 auto 1.5rem auto;
+            margin: 0 auto 0.5rem auto;
           }
 
           .play-pause-btn.lg {
-            width: 68px;
-            height: 68px;
+            width: 60px;
+            height: 60px;
             background: var(--primary);
             color: white;
             box-shadow: 0 6px 20px var(--primary-glow);
@@ -798,7 +811,7 @@ function MusicPlayer({
           }
 
           .icon-button.xl {
-            padding: 0.75rem;
+            padding: 0.5rem;
             color: white;
           }
 

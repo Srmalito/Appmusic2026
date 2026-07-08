@@ -1,10 +1,9 @@
-import { Home, Search, Library as LibraryIcon } from 'lucide-react';
+import { Search, Library } from 'lucide-react';
 
 function Sidebar({ activeTab, setActiveTab }) {
   const menuItems = [
-    { id: 'home', label: 'Inicio', icon: Home },
     { id: 'search', label: 'Buscar', icon: Search },
-    { id: 'library', label: 'Tu Biblioteca', icon: LibraryIcon },
+    { id: 'library', label: 'Tu Biblioteca', icon: Library },
   ];
 
   return (
