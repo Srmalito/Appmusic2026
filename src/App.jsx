@@ -273,48 +273,102 @@ function App() {
       const track = queue[currentTrackIndex];
       if (!track) return;
 
-      if (track.isGlobal) {
-        setUseYtFallback(true);
-        setShowVideo(true); // Force show player container to allow unmuted autoplay
+      const playCurrentTrack = async () => {
         setCurrentTrack(track);
         setCurrentTime(0);
 
-        // Pause and cleanly unload HTML5 audio element to prevent error loops
-        if (audioRef.current) {
-          audioRef.current.removeAttribute('src');
-          audioRef.current.load();
-        }
+        if (track.isGlobal) {
+          setIsBuffering(true);
+          let resolvedSrc = resolvedUrls.current.get(track.videoId);
 
-        // Load into YouTube Player
-        if (ytPlayer.current && isYtReady) {
-          if (ytPlayerLoadedVideoId.current !== track.videoId) {
-            if (isPlaying) {
-              ytPlayer.current.loadVideoById(track.videoId);
-            } else {
-              ytPlayer.current.cueVideoById(track.videoId);
+          if (!resolvedSrc) {
+            try {
+              const apiEndpoint = import.meta.env.DEV 
+                ? `${BACKEND_URL}/api/resolve/${track.videoId}` 
+                : `/api/resolve/${track.videoId}`;
+              
+              console.log(`[Resolve] Querying stream URL via: ${apiEndpoint}`);
+              const res = await fetch(apiEndpoint);
+              if (!res.ok) throw new Error('API failed to resolve stream URL');
+              const data = await res.json();
+              if (data.url) {
+                resolvedSrc = data.url;
+                resolvedUrls.current.set(track.videoId, resolvedSrc);
+              }
+            } catch (err) {
+              console.warn('[Resolve] Failed to get direct stream URL, falling back to YouTube iframe player:', err.message);
             }
-            ytPlayerLoadedVideoId.current = track.videoId;
           }
-        }
-      } else {
-        // Local track playback
-        setUseYtFallback(false);
-        setCurrentTrack(track);
-        setCurrentTime(0);
 
-        if (audioRef.current) {
-          const currentSrc = audioRef.current.src || "";
-          if (currentSrc !== track.src) {
-            audioRef.current.src = track.src;
+          if (resolvedSrc) {
+            // LAYER 1: Native HTML5 Audio (supports background playback on mobile)
+            setUseYtFallback(false);
+            setShowVideo(false);
+            
+            if (ytPlayer.current && isYtReady && ytPlayer.current.pauseVideo) {
+              ytPlayer.current.pauseVideo();
+            }
+
+            if (audioRef.current) {
+              if (audioRef.current.src !== resolvedSrc) {
+                audioRef.current.src = resolvedSrc;
+              }
+              if (isPlaying) {
+                audioRef.current.play().catch((err) => {
+                  console.log('Playback blocked by browser autoplay policy.', err);
+                  setIsPlaying(false);
+                });
+              }
+            }
+            setIsBuffering(false);
+          } else {
+            // LAYER 2: YouTube Iframe Player Fallback
+            setUseYtFallback(true);
+            setShowVideo(true);
+
+            if (audioRef.current) {
+              audioRef.current.removeAttribute('src');
+              audioRef.current.load();
+            }
+
+            if (ytPlayer.current && isYtReady) {
+              if (ytPlayerLoadedVideoId.current !== track.videoId) {
+                if (isPlaying) {
+                  ytPlayer.current.loadVideoById(track.videoId);
+                } else {
+                  ytPlayer.current.cueVideoById(track.videoId);
+                }
+                ytPlayerLoadedVideoId.current = track.videoId;
+              }
+            }
+            setIsBuffering(isPlaying);
           }
-          if (isPlaying) {
-            audioRef.current.play().catch((err) => {
-              console.log('Playback blocked by browser autoplay policy.', err);
-              setIsPlaying(false);
-            });
+        } else {
+          // Local track playback
+          setUseYtFallback(false);
+          setShowVideo(false);
+
+          if (ytPlayer.current && isYtReady && ytPlayer.current.pauseVideo) {
+            ytPlayer.current.pauseVideo();
           }
+
+          if (audioRef.current) {
+            const currentSrc = audioRef.current.src || "";
+            if (currentSrc !== track.src) {
+              audioRef.current.src = track.src;
+            }
+            if (isPlaying) {
+              audioRef.current.play().catch((err) => {
+                console.log('Playback blocked by browser autoplay policy.', err);
+                setIsPlaying(false);
+              });
+            }
+          }
+          setIsBuffering(false);
         }
-      }
+      };
+
+      playCurrentTrack();
     }
   }, [currentTrackIndex, queue, isYtReady, isPlaying]);
 
@@ -553,28 +607,9 @@ function App() {
     setCurrentTrackIndex(index);
     setIsPlaying(true);
 
-    // SYNCHRONOUS PLAYER ACTION TO BYPASS MOBILE AUTOPLAY GESTURE RESTRICTIONS:
-    if (track.isGlobal) {
-      setUseYtFallback(true);
-      if (audioRef.current) {
-        audioRef.current.removeAttribute('src');
-        audioRef.current.load();
-      }
-      if (ytPlayer.current && isYtReady) {
-        ytPlayer.current.loadVideoById(track.videoId);
-        ytPlayerLoadedVideoId.current = track.videoId;
-      }
-    } else {
-      setUseYtFallback(false);
-      if (audioRef.current) {
-        const currentSrc = audioRef.current.src || "";
-        if (currentSrc !== track.src) {
-          audioRef.current.src = track.src;
-        }
-        audioRef.current.play().catch((err) => {
-          console.log('Mobile local play gesture block:', err);
-        });
-      }
+    // Synchronously execute dummy play call to unlock the audio element gesture for mobile
+    if (audioRef.current) {
+      audioRef.current.play().catch(() => {});
     }
   };
 
@@ -582,7 +617,6 @@ function App() {
     setIsPlaying((prev) => {
       const nextPlayState = !prev;
       
-      // Synchronously execute playback action to satisfy mobile browser gesture checks
       if (currentTrack?.isGlobal && useYtFallback) {
         if (ytPlayer.current && isYtReady) {
           if (nextPlayState) {
@@ -622,28 +656,9 @@ function App() {
       return [nextTrack.id, ...filtered].slice(0, 20);
     });
 
-    // Synchronous execution for mobile autoplay chaining support
-    if (nextTrack.isGlobal) {
-      setUseYtFallback(true);
-      if (audioRef.current) {
-        audioRef.current.removeAttribute('src');
-        audioRef.current.load();
-      }
-      if (ytPlayer.current && isYtReady) {
-        ytPlayer.current.loadVideoById(nextTrack.videoId);
-        ytPlayerLoadedVideoId.current = nextTrack.videoId;
-      }
-    } else {
-      setUseYtFallback(false);
-      if (audioRef.current) {
-        const currentSrc = audioRef.current.src || "";
-        if (currentSrc !== nextTrack.src) {
-          audioRef.current.src = nextTrack.src;
-        }
-        audioRef.current.play().catch((err) => {
-          console.log('Mobile transition gesture block:', err);
-        });
-      }
+    // Synchronously execute dummy play call to unlock the audio element gesture for mobile
+    if (audioRef.current) {
+      audioRef.current.play().catch(() => {});
     }
   };
 
